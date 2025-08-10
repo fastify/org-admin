@@ -32,7 +32,7 @@ const options = {
 const parsed = parseArgs(options)
 
 const [command, ...positionals] = parsed.positionals || []
-const dryRun = parsed.values['dry-run'] || false
+const dryRun = parsed.values.dryRun || false
 const org = parsed.values.org
 const monthsInactiveThreshold = parseInt(parsed.values.monthsInactiveThreshold, 10) || 12
 

@@ -229,6 +229,32 @@ export default class AdminClient {
       throw error
     }
   }
+
+  /**
+   * Create a new issue in a repository using the REST API
+   * @param {string} owner - The repository owner (org or user)
+   * @param {string} repo - The repository name
+   * @param {string} title - The issue title
+   * @param {string} body - The issue body/description
+   * @param {Array<string>} [labels] - Optional array of labels
+   * @returns {Promise<Object>} - The created issue data
+   */
+  async createIssue (owner, repo, title, body, labels = []) {
+    try {
+      const response = await this.restClient.issues.create({
+        owner,
+        repo,
+        title,
+        body,
+        labels
+      })
+      this.logger.info({ owner, repo, title }, 'Issue created via REST API')
+      return response.data
+    } catch (error) {
+      this.logger.error({ owner, repo, title, error }, 'Failed to create issue via REST API')
+      throw error
+    }
+  }
 }
 
 function transformGqlTeam ({ node }) {

@@ -25,30 +25,40 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
   const yearsToRead = Math.ceil(monthsInactiveThreshold / 12)
   const membersContributions = await client.getUsersContributions(orgData, membersList, yearsToRead)
 
-  const usersThatShouldBeEmeritus = membersContributions.filter(isEmeritus(monthsInactiveThreshold))
+  const leadTeam = orgTeams.find(team => team.slug === 'leads')
+  const usersThatShouldBeEmeritus = membersContributions
+    .filter(isEmeritus(monthsInactiveThreshold))
+    .filter(isNotLead(leadTeam))
   logger.info('Total emeritus members found: %s', usersThatShouldBeEmeritus.length)
 
   const emeritusTeam = orgTeams.find(team => team.slug === 'emeritus')
   const currentEmeritusUsers = emeritusTeam.members.map(member => member.login)
 
   const usersToEmeritus = usersThatShouldBeEmeritus.filter(user => currentEmeritusUsers.includes(user.user) === false)
+  logger.debug('Total users to move to emeritus team: %s', usersToEmeritus.length)
 
   if (dryRun) {
     logger.info('These users should be added to emeritus team:')
-    usersToEmeritus.forEach(user => logger.info(`- ${user.user}`))
+    usersToEmeritus.forEach(user => logger.info(`- @${user.user}`))
   } else {
-    // Let's do it sequentially to avoid hitting API rate limits
-    for (const staleUser of usersToEmeritus) {
-      logger.info('Adding user %s to emeritus team', staleUser.user)
-      await client.addUserToTeam(orgData.name, emeritusTeam.slug, staleUser.user)
+    await client.createIssue(
+      orgData.name,
+      'org-admin',
+      'Move to emeritus members',
+      `The following users have been inactive for more than ${monthsInactiveThreshold} months
+        and should be added to the emeritus team to control the access to the Fastify organization:
 
-      const userTeams = membersOverview.get(staleUser.user)
-      await Promise.all(userTeams.map(team => {
-        logger.debug('Removing user %s from team %s', staleUser.user, team.name)
-        return client.removeUserFromTeam(orgData.name, team.slug, staleUser.user)
-      }))
-    }
+        ${usersToEmeritus.map(user => `- @${user.user}`).join('\n')}
+
+        \nComment here if you don't want to move them to emeritus team.`,
+      ['question']
+    )
   }
+}
+
+function isNotLead (leadTeam) {
+  const leads = leadTeam.members.map(member => member.login)
+  return member => !leads.includes(member.user)
 }
 
 function isEmeritus (monthsInactiveThreshold) {

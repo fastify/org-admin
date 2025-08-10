@@ -11,23 +11,20 @@ npm install @fastify-org/org-admin
 
 ### Onboard a user
 
-```bash
-npx @fastify-org/org-admin onboard <username> --org <org> [--dry-run]
-```
+- [ ] TODO
 
 ### Offboard a user
 
-```bash
-npx @fastify-org/org-admin offboard <username> --org <org> [--dry-run]
-```
+- [ ] TODO
 
 ### Check emeritus members
 
-This command checks the last contribution date of members
-and marks them as emeritus if they haven't contributed in the last 12 months.
+This command checks the last contribution date of org's members.
+It creates an issue listing the users that have been inactive for more than a specified number of months.
+
 
 ```bash
-npx @fastify-org/org-admin emeritus --org <org> [--dry-run]
+node --env-file=.env index.js emeritus --org <org> [--monthsInactiveThreshold] [--dryRun]
 ```
 
 ## License

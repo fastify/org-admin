@@ -84,90 +84,14 @@ export default class AdminClient {
     return teamsData
   }
 
-  async getMembersDetails (orgData) {
-    let cursor = null
-    let hasNextPage = true
-    const membersData = []
-
-    const membersQuery = `
-      query ($cursor: String, $orgName: String!, $orgId: ID, $fromDate: DateTime!, $toDate: DateTime!) {
-        organization(login: $orgName) {
-          membersWithRole(first: 15, after: $cursor) {
-            edges {
-              node {
-                login
-                name
-                contributionsCollection(
-                  organizationID: $orgId
-                  from: $fromDate
-                  to: $toDate
-                ) {
-                  pullRequestContributions(last: 1, orderBy: {direction: ASC}) {
-                    nodes {
-                      occurredAt
-                      pullRequest {
-                        url
-                      }
-                    }
-                  }
-                  issueContributions(last: 1, orderBy: {direction: ASC}) {
-                    nodes {
-                      occurredAt
-                      issue {
-                        url
-                      }
-                    }
-                  }
-                  commitContributionsByRepository(maxRepositories: 1) {
-                    contributions(last: 1, orderBy: {direction: ASC, field: OCCURRED_AT}) {
-                      nodes {
-                        repository {
-                          name
-                        }
-                        occurredAt
-                        url
-                      }
-                    }
-                  }
-                }
-              }
-            }
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-          }
-        }
-      }
-    `
-
-    // Calculate MAX date range supported by the GQL Service (from 1 year ago to today)
-    const toDate = new Date()
-    const fromDate = new Date()
-    fromDate.setFullYear(fromDate.getFullYear() - 1)
-
-    while (hasNextPage) {
-      const variables = {
-        cursor,
-        orgId: orgData.id,
-        orgName: orgData.name,
-        fromDate,
-        toDate
-      }
-
-      const membersResponse = await this.graphqlClient(membersQuery, variables)
-
-      const members = membersResponse.organization.membersWithRole.edges
-      membersData.push(...members.map(transformGqlMember))
-
-      cursor = membersResponse.organization.membersWithRole.pageInfo.endCursor
-      hasNextPage = membersResponse.organization.membersWithRole.pageInfo.hasNextPage
-    }
-
-    return membersData
-  }
-
-  async getOlderContributions (orgData, userList, yearsBack = 1) {
+  /**
+   *
+   * @param {Object} orgData
+   * @param {string[]} userList
+   * @param {number} yearsBack
+   * @returns {Promise<Object[]>}
+   */
+  async getUsersContributions (orgData, userList, yearsBack = 1) {
     const oldContributionsQuery = `
       query ($userId: String!, $orgId: ID, $from: DateTime!, $to: DateTime!) {
         user(login: $userId) {
@@ -218,29 +142,44 @@ export default class AdminClient {
     `
 
     const membersData = []
-    for (let yearWindow = 0; yearWindow < yearsBack; yearWindow++) {
-      this.logger.debug('Fetching contributions for %s users in year window: %s', userList.length, yearWindow)
-
-      for (const staleUser of userList) {
+    for (const targetUser of userList) {
+      let hasContributions = false
+      for (let yearWindow = 0; yearWindow < yearsBack; yearWindow++) {
         const toDate = new Date()
         toDate.setFullYear(toDate.getFullYear() - yearWindow)
 
-        const fromDate = new Date() // Always 1 year back
+        // Always 1 year back because it is the max date range supported by the GQL Service
+        const fromDate = new Date()
         fromDate.setFullYear(toDate.getFullYear() - 1)
 
         const variables = {
-          userId: staleUser.user,
+          userId: targetUser,
           orgId: orgData.id,
           from: fromDate.toISOString(),
           to: toDate.toISOString()
         }
 
-        // TODO it is not neccessary to query again if the user has a contribution in the previous iteration
-        // ! TODO merge the results instead of querying again
-
-        this.logger.debug('Fetching contributions for user: %s from %s to %s', staleUser.user, variables.from, variables.to)
+        this.logger.debug('Fetching contributions for user: %s from %s to %s', targetUser, variables.from, variables.to)
         const contributionsResponse = await this.graphqlClient(oldContributionsQuery, variables)
-        membersData.push(transformGqlMember({ node: contributionsResponse.user }))
+        const simplifiedUser = transformGqlMember({ node: contributionsResponse.user })
+
+        // If the user has any contribution in the year window, add it to the list and avoid querying again
+        // We are interested in at least one contribution in the year window
+        if (simplifiedUser.lastPR || simplifiedUser.lastIssue || simplifiedUser.lastCommit) {
+          hasContributions = true
+          membersData.push(simplifiedUser)
+          break
+        }
+      }
+
+      if (!hasContributions) {
+        this.logger.warn('No contributions found for user %s in the last %s years', targetUser, yearsBack)
+        membersData.push({
+          user: targetUser,
+          lastPR: null,
+          lastIssue: null,
+          lastCommit: null,
+        })
       }
     }
 

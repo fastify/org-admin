@@ -7,36 +7,37 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
   const orgTeams = await client.getOrgChart(orgData)
   logger.info('Total teams: %s', orgTeams.length)
 
-  const membersDetails = await client.getMembersDetails(orgData)
-  logger.info('Total members: %s', membersDetails.length)
-
-  if (monthsInactiveThreshold > 12) {
-    // Since `getMembersDetails` returns members active in the last 12 months,
-    // we need to run another query to get members without contributions in the last year.
-    const membersWithoutContribInLastYear = membersDetails.filter(item => !item.lastPR && !item.lastIssue && !item.lastCommit)
-
-    const yearsToRead = Math.ceil(monthsInactiveThreshold / 12)
-    logger.warn('The monthsInactiveThreshold is set to more than 12 months, reading contributions for %s years...', yearsToRead)
-    const olderContributions = await client.getOlderContributions(orgData, membersWithoutContribInLastYear, yearsToRead)
-
-    // ! TODO merge the results instead of appending
-    membersDetails.push(...olderContributions)
+  // This maps holds the teams each member belongs to
+  const membersOverview = new Map()
+  for (const team of orgTeams) {
+    for (const member of team.members) {
+      if (membersOverview.has(member.login) === false) {
+        membersOverview.set(member.login, [team])
+      } else {
+        membersOverview.get(member.login).push(team)
+      }
+    }
   }
 
-  const usersThatShouldBeEmeritus = membersDetails.filter(isEmeritus(monthsInactiveThreshold))
+  const membersList = Array.from(membersOverview.keys())
+  logger.info('Total members: %s', membersList.length)
+
+  const yearsToRead = Math.ceil(monthsInactiveThreshold / 12)
+  const membersContributions = await client.getUsersContributions(orgData, membersList, yearsToRead)
+
+  const usersThatShouldBeEmeritus = membersContributions.filter(isEmeritus(monthsInactiveThreshold))
   logger.info('Total emeritus members found: %s', usersThatShouldBeEmeritus.length)
 
   const emeritusTeam = orgTeams.find(team => team.slug === 'emeritus')
   const currentEmeritusUsers = emeritusTeam.members.map(member => member.login)
 
-  const usersToAdd = usersThatShouldBeEmeritus.filter(user => currentEmeritusUsers.includes(user.user) === false)
+  const usersToEmeritus = usersThatShouldBeEmeritus.filter(user => currentEmeritusUsers.includes(user.user) === false)
+  logger.info('These users should be added to emeritus team:')
+  usersToEmeritus.forEach(user => logger.info(`- ${user.user}`))
 
-  if (dryRun) {
-    logger.info('[DRY RUN] Would run emeritus command')
-    console.log(usersToAdd)
-  } else {
-    // TODO Implement emeritus logic here
-    //   logger.info('Running emeritus command')
+  if (!dryRun) {
+    // TODO We add them to the emeritus team
+    // TODO We remove them from all other teams
   }
 }
 

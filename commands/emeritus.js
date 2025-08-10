@@ -32,12 +32,22 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
   const currentEmeritusUsers = emeritusTeam.members.map(member => member.login)
 
   const usersToEmeritus = usersThatShouldBeEmeritus.filter(user => currentEmeritusUsers.includes(user.user) === false)
-  logger.info('These users should be added to emeritus team:')
-  usersToEmeritus.forEach(user => logger.info(`- ${user.user}`))
 
-  if (!dryRun) {
-    // TODO We add them to the emeritus team
-    // TODO We remove them from all other teams
+  if (dryRun) {
+    logger.info('These users should be added to emeritus team:')
+    usersToEmeritus.forEach(user => logger.info(`- ${user.user}`))
+  } else {
+    // Let's do it sequentially to avoid hitting API rate limits
+    for (const staleUser of usersToEmeritus) {
+      logger.info('Adding user %s to emeritus team', staleUser.user)
+      await client.addUserToTeam(orgData.name, emeritusTeam.slug, staleUser.user)
+
+      const userTeams = membersOverview.get(staleUser.user)
+      await Promise.all(userTeams.map(team => {
+        logger.debug('Removing user %s from team %s', staleUser.user, team.name)
+        return client.removeUserFromTeam(orgData.name, team.slug, staleUser.user)
+      }))
+    }
   }
 }
 

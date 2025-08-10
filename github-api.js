@@ -185,6 +185,50 @@ export default class AdminClient {
 
     return membersData
   }
+
+  /**
+   * Add a user to a team in the organization using the REST API
+   * @param {string} org - The organization name
+   * @param {string} teamSlug - The team slug
+   * @param {string} username - The GitHub username to add
+   */
+  async addUserToTeam (org, teamSlug, username) {
+    try {
+      const response = await this.restClient.teams.addOrUpdateMembershipForUserInOrg({
+        org,
+        team_slug: teamSlug,
+        username,
+        role: 'member',
+      })
+
+      this.logger.info({ username, teamSlug }, 'User added to team')
+      return response.data
+    } catch (error) {
+      this.logger.error({ username, teamSlug, error }, 'Failed to add user to team')
+      throw error
+    }
+  }
+
+  /**
+   * Remove a user from a team in the organization using the REST API
+   * @param {string} org - The organization name
+   * @param {string} teamSlug - The team slug
+   * @param {string} username - The GitHub username to remove
+   */
+  async removeUserFromTeam (org, teamSlug, username) {
+    try {
+      const response = await this.restClient.teams.removeMembershipForUserInOrg({
+        org,
+        team_slug: teamSlug,
+        username
+      })
+      this.logger.info({ username, teamSlug }, 'User removed from team')
+      return response.data
+    } catch (error) {
+      this.logger.error({ username, teamSlug, error }, 'Failed to remove user from team')
+      throw error
+    }
+  }
 }
 
 function transformGqlTeam ({ node }) {

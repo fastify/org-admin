@@ -1,5 +1,5 @@
 /**
- * Offboards a user from the organization.
+ * Offboards a user from an organization.
  * @param {{ logger: import('pino').Logger }} deps
  * @param {{ org: string, username: string, dryRun: boolean }} options
  * @returns {Promise<void>}

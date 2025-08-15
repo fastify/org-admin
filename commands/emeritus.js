@@ -1,3 +1,10 @@
+/**
+ * Finds inactive members in an organization for the given number of months
+ * and opens an issue in the repository to propose moving them to the emeritus team.
+ * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps
+ * @param {{ org: string, monthsInactiveThreshold: number, dryRun: boolean }} options
+ * @returns {Promise<void>}
+ */
 export default async function emeritus ({ client, logger }, { org, monthsInactiveThreshold, dryRun }) {
   logger.info('Running emeritus command for organization: %s', org)
 

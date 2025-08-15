@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest'
 import { graphql } from '@octokit/graphql'
 
 export default class AdminClient {
+  /** @param {import('pino').Logger} [logger] */
   constructor (logger) {
     if (!process.env.GITHUB_TOKEN) {
       throw new Error('GITHUB_TOKEN environment variable is not set')
@@ -187,10 +188,11 @@ export default class AdminClient {
   }
 
   /**
-   * Add a user to a team in the organization using the REST API
-   * @param {string} org - The organization name
-   * @param {string} teamSlug - The team slug
-   * @param {string} username - The GitHub username to add
+   * Add a user to a team in the organization using the REST API.
+   * @param {string} org - The organization name.
+   * @param {string} teamSlug - The team slug.
+   * @param {string} username - The GitHub username to add.
+   * @return {Promise<import('@octokit/openapi-types').components['schemas']['team-membership']>} The updated team data.
    */
   async addUserToTeam (org, teamSlug, username) {
     try {
@@ -210,10 +212,10 @@ export default class AdminClient {
   }
 
   /**
-   * Remove a user from a team in the organization using the REST API
-   * @param {string} org - The organization name
-   * @param {string} teamSlug - The team slug
-   * @param {string} username - The GitHub username to remove
+   * Removes a user from a team in the organization using the REST API.
+   * @param {string} org - The organization name.
+   * @param {string} teamSlug - The team slug.
+   * @param {string} username - The GitHub username to remove.
    */
   async removeUserFromTeam (org, teamSlug, username) {
     try {
@@ -231,13 +233,13 @@ export default class AdminClient {
   }
 
   /**
-   * Create a new issue in a repository using the REST API
-   * @param {string} owner - The repository owner (org or user)
-   * @param {string} repo - The repository name
-   * @param {string} title - The issue title
-   * @param {string} body - The issue body/description
-   * @param {Array<string>} [labels] - Optional array of labels
-   * @returns {Promise<Object>} - The created issue data
+   * Creates a new issue in a repository using the REST API.
+   * @param {string} owner - The repository owner (org or user).
+   * @param {string} repo - The repository name.
+   * @param {string} title - The issue title.
+   * @param {string} body - The issue body/description.
+   * @param {Array<string>} [labels] - Optional array of labels.
+   * @return {Promise<import('@octokit/openapi-types').components['schemas']['issue']>} The created issue data.
    */
   async createIssue (owner, repo, title, body, labels = []) {
     try {

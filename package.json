@@ -1,0 +1,49 @@
+{
+  "name": "@fastify/org-admin",
+  "version": "1.0.0",
+  "description": "Fastify Org Admin scripts",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "adminify": "index.js"
+  },
+  "devDependencies": {
+    "eslint": "^9.32.0",
+    "neostandard": "^0.12.2"
+  },
+  "dependencies": {
+    "@octokit/graphql": "^9.0.1",
+    "@octokit/rest": "^22.0.0",
+    "pino": "^9.7.0",
+    "pino-pretty": "^13.1.1"
+  },
+  "scripts": {
+    "lint": "eslint . --ext .js,.ts",
+    "lint:fix": "eslint . --ext .js,.ts --fix",
+    "try:emeritus": "node --env-file=.env index.js emeritus --monthsInactiveThreshold 24 --dryRun",
+    "test": "exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fastify/org-admin.git"
+  },
+  "author": "Eomm",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/fastify/org-admin/issues"
+  },
+  "homepage": "https://github.com/fastify/org-admin#readme",
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/fastify"
+    },
+    {
+      "type": "opencollective",
+      "url": "https://opencollective.com/fastify"
+    }
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

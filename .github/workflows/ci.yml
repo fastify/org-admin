@@ -26,3 +26,4 @@ jobs:
     with:
       license-check: true
       lint: true
+      node-versions: '["22"]'

@@ -23,6 +23,7 @@ const options = {
   options: {
     dryRun: { type: 'boolean', default: false },
     username: { type: 'string', multiple: false, default: undefined },
+    team: { type: 'string', multiple: true },
     org: { type: 'string', multiple: false, default: 'fastify' },
     monthsInactiveThreshold: { type: 'string', multiple: false, default: '12' },
   },
@@ -31,7 +32,8 @@ const options = {
 
 const parsed = parseArgs(options)
 
-const [command, ...positionals] = parsed.positionals || []
+// const [command, ...positionals] = parsed.positionals || []
+const [command] = parsed.positionals || []
 const dryRun = parsed.values.dryRun || false
 const org = parsed.values.org
 const monthsInactiveThreshold = parseInt(parsed.values.monthsInactiveThreshold, 10) || 12
@@ -47,14 +49,20 @@ const technicalOptions = { client, logger }
 switch (command) {
   case 'onboard':
   case 'offboard': {
-    const username = positionals[0]
+    const username = parsed.values.username
     if (!username) {
       logger.error('Missing required username argument')
       process.exit(1)
     }
 
     if (command === 'onboard') {
-      await onboard(technicalOptions, { username, dryRun, org })
+      if (!parsed.values.team) {
+        logger.error('Missing required team argument for onboarding')
+        process.exit(1)
+      }
+
+      const joiningTeams = parsed.values.team
+      await onboard(technicalOptions, { username, dryRun, org, joiningTeams })
     } else {
       await offboard(technicalOptions, { username, dryRun, org })
     }

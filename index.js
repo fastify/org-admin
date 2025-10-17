@@ -61,7 +61,7 @@ switch (command) {
         process.exit(1)
       }
 
-      const joiningTeams = parsed.values.team
+      const joiningTeams = new Set(parsed.values.team)
       await onboard(technicalOptions, { username, dryRun, org, joiningTeams })
     } else {
       await offboard(technicalOptions, { username, dryRun, org })

@@ -3,7 +3,7 @@ import readline from 'node:readline/promises'
 /**
  * Onboards a user to an organization.
  * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps
- * @param {{ org: string, username: string, dryRun: boolean }} options
+ * @param {{ org: string, username: string, joiningTeams:Set, dryRun: boolean }} options
  * @returns {Promise<void>}
  */
 export default async function onboard ({ client, logger }, { org, username, joiningTeams, dryRun }) {
@@ -17,15 +17,17 @@ export default async function onboard ({ client, logger }, { org, username, join
   logger.info('Organization ID %s', orgData.id)
 
   const orgTeams = await client.getOrgChart(orgData)
-  const destinationTeams = orgTeams.filter(t => joiningTeams.includes(t.slug))
-  if (destinationTeams.length !== joiningTeams.length) {
-    const missing = joiningTeams.filter(t => destinationTeams.find(dt => dt.slug === t) == null)
-    logger.error('Team %s not found in organization %s', missing, org)
+  const destinationTeams = orgTeams.filter(t => joiningTeams.has(t.slug))
+
+  const teamSlugs = new Set(orgTeams.map(t => t.slug))
+  const wrongInputTeams = joiningTeams.difference(teamSlugs)
+  if (wrongInputTeams.size) {
+    logger.error('Team %s not found in organization %s', [...wrongInputTeams], org)
     process.exit(1)
   }
 
   if (dryRun) {
-    logger.info('[DRY-RUN] This user %s should be added to team %s', joiningUser.login, destinationTeams.map(t => t.slug))
+    logger.info('[DRY-RUN] This user %s should be added to team %s', joiningUser.login, [...joiningTeams])
   } else {
     for (const targetTeam of destinationTeams) {
       await client.addUserToTeam(org, targetTeam.slug, joiningUser.login)

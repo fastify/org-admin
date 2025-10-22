@@ -55,7 +55,7 @@ async function confirm (q) {
     input: process.stdin,
     output: process.stdout
   })
-  const answer = await rl.question(`${q} (y/n)`)
+  const answer = await rl.question(`${q} (y/N)`)
   rl.close()
   return answer.trim().toLowerCase() === 'y'
 }

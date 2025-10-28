@@ -11,7 +11,17 @@ npm install @fastify-org/org-admin
 
 ### Onboard a user
 
-- [ ] TODO
+This command adds a user to the specified teams in the GitHub organization.
+
+```bash
+node --env-file=.env index.js onboard --org <org> --username <user> --team <team_1> --team <team_n> [--dryRun]
+```
+
+For the fastify organization, the command would look like:
+
+```bash
+node --env-file=.env index.js onboard --username <user> --team collaborators --team plugins --team website --team frontend
+```
 
 ### Offboard a user
 
@@ -25,6 +35,12 @@ It creates an issue listing the users that have been inactive for more than a sp
 
 ```bash
 node --env-file=.env index.js emeritus --org <org> [--monthsInactiveThreshold] [--dryRun]
+```
+
+For the fastify organization, the command would look like:
+
+```bash
+node --env-file=.env index.js emeritus --monthsInactiveThreshold 24
 ```
 
 ## License

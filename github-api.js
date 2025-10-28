@@ -34,6 +34,15 @@ export default class AdminClient {
     return organization
   }
 
+  /**
+   * Retrieves the organization chart for a given GitHub organization.
+   * Fetches all teams and their members using the GitHub GraphQL API, handling pagination.
+   *
+   * @async
+   * @param {Object} orgData - The organization data.
+   * @param {string} orgData.name - The login name of the GitHub organization.
+   * @returns {Promise<Array<Team>>} Array of team objects with their members and details.
+   */
   async getOrgChart (orgData) {
     let cursor = null
     let hasNextPage = true
@@ -188,6 +197,37 @@ export default class AdminClient {
   }
 
   /**
+   *
+   * @param {string} username
+   * @returns
+   */
+  async getUserInfo (username) {
+    try {
+      const variables = { username }
+      const userQuery = `
+        query ($username: String!) {
+          user(login: $username) {
+            login
+            name
+            socialAccounts(last:4) {
+              nodes {
+                displayName
+                url
+                provider
+              }
+            }
+          }
+      }
+      `
+      const response = await this.graphqlClient(userQuery, variables)
+      return response.user
+    } catch (error) {
+      this.logger.error({ username, error }, 'Failed to fetch user info')
+      throw error
+    }
+  }
+
+  /**
    * Add a user to a team in the organization using the REST API.
    * @param {string} org - The organization name.
    * @param {string} teamSlug - The team slug.
@@ -202,8 +242,6 @@ export default class AdminClient {
         username,
         role: 'member',
       })
-
-      this.logger.info({ username, teamSlug }, 'User added to team')
       return response.data
     } catch (error) {
       this.logger.error({ username, teamSlug, error }, 'Failed to add user to team')
@@ -275,6 +313,10 @@ function transformGqlTeam ({ node }) {
   }
 }
 
+/**
+ * Transforms a GitHub GraphQL member node into a simplified member object.
+ * @returns {Team}
+ */
 function transformGqlMember ({ node }) {
   return {
     user: node.login,
@@ -288,3 +330,19 @@ function transformGqlMember ({ node }) {
 function toDate (dateStr) {
   return dateStr ? new Date(dateStr) : null
 }
+
+/** @typedef {Object} Team
+ * @property {string} id - The team's unique identifier.
+ * @property {string} name - The team's name.
+ * @property {string} slug - The team's slug.
+ * @property {string} [description] - The team's description.
+ * @property {string} privacy - The team's privacy setting.
+ * @property {Array<TeamMember>} members - The list of team members.
+ */
+
+/** @typedef {Object} TeamMember
+ * @property {string} login - The member's GitHub login.
+ * @property {string} [name] - The member's name.
+ * @property {string} [email] - The member's email.
+ * @property {string} role - The member's role in the team.
+ */

@@ -3,7 +3,7 @@ import readline from 'node:readline/promises'
 /**
  * Onboards a user to an organization.
  * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps
- * @param {{ org: string, username: string, joiningTeams:Set, dryRun: boolean }} options
+ * @param {{ org: string, username: string, joiningTeams: Set, dryRun: boolean }} options
  * @returns {Promise<void>}
  */
 export default async function onboard ({ client, logger }, { org, username, joiningTeams, dryRun }) {

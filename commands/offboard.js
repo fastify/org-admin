@@ -16,6 +16,7 @@ export default async function offboard ({ logger, client }, { org, username, dry
   const orgData = await client.getOrgData(org)
   logger.info('Organization ID %s', orgData.id)
   const orgTeams = await client.getOrgChart(orgData)
+  const emeritusTeam = orgTeams.find(team => team.slug === 'emeritus')
 
   /** GitHub Cleanup */
   const userTeams = orgTeams.filter(t => t.members.find(m => m.login === joiningUser.login))
@@ -29,6 +30,16 @@ export default async function offboard ({ logger, client }, { org, username, dry
     await client.removeUserFromTeam(orgData.name, team.slug, joiningUser.login)
     logger.info('Removed %s from team %s', joiningUser.login, team.slug)
   }
+
+  if (emeritusTeam) {
+    if (dryRun) {
+      logger.warn('[DRY RUN] This user %s will be added to emeritus team', joiningUser.login)
+    } else {
+      await client.addUserToTeam(orgData.name, emeritusTeam.slug, joiningUser.login)
+      logger.info('Added %s to emeritus team', joiningUser.login)
+    }
+  }
+
   logger.info('GitHub offboarding completed for user %s ✅ ', joiningUser.login)
 
   /** NPM Cleanup */

@@ -1,4 +1,4 @@
-import readline from 'node:readline/promises'
+import { confirm } from './utils/input.js'
 
 /**
  * Onboards a user to an organization.
@@ -48,14 +48,4 @@ export default async function onboard ({ client, logger }, { org, username, join
     logger.info('npm team add @%s:%s %s', org, team.slug, joiningUser.login)
   })
   logger.info('When it will be done, the NPM onboarding will be completed for user %s ✅ ', joiningUser.login)
-}
-
-async function confirm (q) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  })
-  const answer = await rl.question(`${q} (y/N)`)
-  rl.close()
-  return answer.trim().toLowerCase() === 'y'
 }

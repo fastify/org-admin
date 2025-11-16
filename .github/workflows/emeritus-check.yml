@@ -1,0 +1,38 @@
+name: Emeritus Check
+
+on:
+  # Run on the 1st of every month at 9:00 AM UTC
+  schedule:
+    - cron: "0 9 1 * *"
+  # Allow manual trigger
+  workflow_dispatch:
+
+permissions:
+  # Required to read repository contents
+  contents: read
+  # Required to create issues
+  issues: write
+
+jobs:
+  emeritus-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm i --ignore-scripts
+
+      - name: Run emeritus check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node index.js emeritus --monthsInactiveThreshold 12 --org fastify

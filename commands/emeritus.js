@@ -48,18 +48,22 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
     logger.info('[DRY-RUN] These users should be added to emeritus team:')
     usersToEmeritus.forEach(user => logger.info(`- @${user.user}`))
   } else {
-    await client.createIssue(
-      orgData.name,
-      'org-admin',
-      'Move to emeritus members',
+    if (usersToEmeritus.length > 0) {
+      await client.createIssue(
+        orgData.name,
+        'org-admin',
+        'Move to emeritus members',
       `The following users have been inactive for more than ${monthsInactiveThreshold} months
-        and should be added to the emeritus team to control the access to the Fastify organization:
+        and should be added to the emeritus team to control the access to the Fastify organization
+        and secure the organization's repositories:
 
         ${usersToEmeritus.map(user => `- @${user.user}`).join('\n')}
 
-        \nComment here if you don't want to move them to emeritus team.`,
+        \nComment here if you don't want to be moved to emeritus team and confirm that your account
+        is still monitored and secured.`,
       ['question']
-    )
+      )
+    }
   }
 }
 

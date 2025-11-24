@@ -2,7 +2,7 @@ import { Octokit } from '@octokit/rest'
 import { graphql } from '@octokit/graphql'
 
 export default class AdminClient {
-  /** @param {import('pino').Logger} [logger] */
+  /** @param {import('pino').Logger} [logger] - Optional logger instance, defaults to console. */
   constructor (logger) {
     if (!process.env.GITHUB_TOKEN) {
       throw new Error('GITHUB_TOKEN environment variable is not set')
@@ -21,6 +21,11 @@ export default class AdminClient {
     })
   }
 
+  /**
+   * Retrieves organization data for a given GitHub organization.
+   * @param {string} orgName - The name of the GitHub organization.
+   * @returns {Promise<object>} The organization data.
+   */
   async getOrgData (orgName) {
     const { organization } = await this.graphqlClient(`
       query ($orgName: String!) {
@@ -37,11 +42,10 @@ export default class AdminClient {
   /**
    * Retrieves the organization chart for a given GitHub organization.
    * Fetches all teams and their members using the GitHub GraphQL API, handling pagination.
-   *
    * @async
-   * @param {Object} orgData - The organization data.
+   * @param {object} orgData - The organization data.
    * @param {string} orgData.name - The login name of the GitHub organization.
-   * @returns {Promise<Array<Team>>} Array of team objects with their members and details.
+   * @returns {Promise<Team[]>} Array of team objects with their members and details.
    */
   async getOrgChart (orgData) {
     let cursor = null
@@ -95,11 +99,11 @@ export default class AdminClient {
   }
 
   /**
-   *
-   * @param {Object} orgData
-   * @param {string[]} userList
-   * @param {number} yearsBack
-   * @returns {Promise<Object[]>}
+   * Fetches the contributions of a list of users within a specified organization over a defined number of years.
+   * @param {object} orgData - Organization data.
+   * @param {string[]} userList - List of GitHub usernames to fetch contributions for.
+   * @param {number} yearsBack - Number of years to look back for contributions. Defaults to `1`.
+   * @returns {Promise<UserContribution[]>} Array of user contribution data.
    */
   async getUsersContributions (orgData, userList, yearsBack = 1) {
     const oldContributionsQuery = `
@@ -197,9 +201,9 @@ export default class AdminClient {
   }
 
   /**
-   *
-   * @param {string} username
-   * @returns
+   * Fetches user information from GitHub using the GraphQL API.
+   * @param {string} username - The GitHub username.
+   * @returns {Promise<any>} The user information.
    */
   async getUserInfo (username) {
     try {
@@ -232,7 +236,7 @@ export default class AdminClient {
    * @param {string} org - The organization name.
    * @param {string} teamSlug - The team slug.
    * @param {string} username - The GitHub username to add.
-   * @return {Promise<import('@octokit/openapi-types').components['schemas']['team-membership']>} The updated team data.
+   * @returns {Promise<import('@octokit/openapi-types').components['schemas']['team-membership']>} The updated team data.
    */
   async addUserToTeam (org, teamSlug, username) {
     try {
@@ -254,6 +258,7 @@ export default class AdminClient {
    * @param {string} org - The organization name.
    * @param {string} teamSlug - The team slug.
    * @param {string} username - The GitHub username to remove.
+   * @returns {Promise<any>} The response data from the API.
    */
   async removeUserFromTeam (org, teamSlug, username) {
     try {
@@ -276,8 +281,8 @@ export default class AdminClient {
    * @param {string} repo - The repository name.
    * @param {string} title - The issue title.
    * @param {string} body - The issue body/description.
-   * @param {Array<string>} [labels] - Optional array of labels.
-   * @return {Promise<import('@octokit/openapi-types').components['schemas']['issue']>} The created issue data.
+   * @param {string[]} [labels] - Optional array of labels.
+   * @returns {Promise<import('@octokit/openapi-types').components['schemas']['issue']>} The created issue data.
    */
   async createIssue (owner, repo, title, body, labels = []) {
     try {
@@ -297,6 +302,12 @@ export default class AdminClient {
   }
 }
 
+/**
+ * Transforms a GitHub GraphQL team node into a simplified team object.
+ * @param {object} gqlTeam - The GitHub GraphQL team node.
+ * @param {object} gqlTeam.node - The team node.
+ * @returns {Team} The simplified team object.
+ */
 function transformGqlTeam ({ node }) {
   return {
     id: node.id,
@@ -315,7 +326,9 @@ function transformGqlTeam ({ node }) {
 
 /**
  * Transforms a GitHub GraphQL member node into a simplified member object.
- * @returns {Team}
+ * @param {object} gqlMember - The GitHub GraphQL member node.
+ * @param {object} gqlMember.node - The member node.
+ * @returns {UserContribution} The simplified member object.
  */
 function transformGqlMember ({ node }) {
   return {
@@ -327,22 +340,38 @@ function transformGqlMember ({ node }) {
   }
 }
 
+/**
+ * Converts a date string to a Date object, or returns null if the string is falsy.
+ * @param {string} dateStr - The date string to convert.
+ * @returns {Date|null} The Date object or null.
+ */
 function toDate (dateStr) {
   return dateStr ? new Date(dateStr) : null
 }
 
-/** @typedef {Object} Team
+/**
+ * @typedef {object} Team
  * @property {string} id - The team's unique identifier.
  * @property {string} name - The team's name.
  * @property {string} slug - The team's slug.
  * @property {string} [description] - The team's description.
  * @property {string} privacy - The team's privacy setting.
- * @property {Array<TeamMember>} members - The list of team members.
+ * @property {TeamMember[]} members - The list of team members.
  */
 
-/** @typedef {Object} TeamMember
+/**
+ * @typedef {object} TeamMember
  * @property {string} login - The member's GitHub login.
  * @property {string} [name] - The member's name.
  * @property {string} [email] - The member's email.
  * @property {string} role - The member's role in the team.
+ */
+
+/**
+ * @typedef {object} UserContribution
+ * @property {string} user - The user's GitHub login.
+ * @property {Date|null} lastPR - The date of the user's last pull request contribution.
+ * @property {Date|null} lastIssue - The date of the user's last issue contribution.
+ * @property {Date|null} lastCommit - The date of the user's last commit contribution.
+ * @property {object[]} [socialAccounts] - The user's social accounts.
  */

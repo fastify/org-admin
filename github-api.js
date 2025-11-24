@@ -103,7 +103,7 @@ export default class AdminClient {
    * @param {object} orgData - Organization data.
    * @param {string[]} userList - List of GitHub usernames to fetch contributions for.
    * @param {number} yearsBack - Number of years to look back for contributions. Defaults to `1`.
-   * @returns {Promise<UserContribution[]>} Array of user contribution data.
+   * @returns {Promise<SimplifiedMember[]>} Array of user contribution data.
    */
   async getUsersContributions (orgData, userList, yearsBack = 1) {
     const oldContributionsQuery = `
@@ -328,7 +328,7 @@ function transformGqlTeam ({ node }) {
  * Transforms a GitHub GraphQL member node into a simplified member object.
  * @param {object} gqlMember - The GitHub GraphQL member node.
  * @param {object} gqlMember.node - The member node.
- * @returns {UserContribution} The simplified member object.
+ * @returns {SimplifiedMember} The simplified member object.
  */
 function transformGqlMember ({ node }) {
   return {
@@ -368,7 +368,7 @@ function toDate (dateStr) {
  */
 
 /**
- * @typedef {object} UserContribution
+ * @typedef {object} SimplifiedMember
  * @property {string} user - The user's GitHub login.
  * @property {Date|null} lastPR - The date of the user's last pull request contribution.
  * @property {Date|null} lastIssue - The date of the user's last issue contribution.

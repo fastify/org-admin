@@ -1,22 +1,23 @@
+import { env } from 'node:process'
 import { Octokit } from '@octokit/rest'
 import { graphql } from '@octokit/graphql'
 
 export default class AdminClient {
   /** @param {import('pino').Logger} [logger] */
   constructor (logger) {
-    if (!process.env.GITHUB_TOKEN) {
+    if (!env.GITHUB_TOKEN) {
       throw new Error('GITHUB_TOKEN environment variable is not set')
     }
 
     this.logger = logger || console
     this.restClient = new Octokit({
-      auth: process.env.GITHUB_TOKEN,
+      auth: env.GITHUB_TOKEN,
       userAgent: 'fastify-org-admin-cli',
     })
 
     this.graphqlClient = graphql.defaults({
       headers: {
-        authorization: `token ${process.env.GITHUB_TOKEN}`,
+        authorization: `token ${env.GITHUB_TOKEN}`,
       },
     })
   }

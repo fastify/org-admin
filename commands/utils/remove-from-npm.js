@@ -1,9 +1,10 @@
+import { env } from 'node:process'
 import { spawn } from 'node:child_process'
 import { askForInput } from './input.js'
 
 function runSpawn (cmd, args) {
   return new Promise((resolve, reject) => {
-    const cli = spawn(cmd, args, { env: process.env })
+    const cli = spawn(cmd, args, { env })
     cli.stdout.setEncoding('utf8')
     cli.stderr.setEncoding('utf8')
 

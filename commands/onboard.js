@@ -1,3 +1,4 @@
+import { exit } from 'node:process'
 import { confirm } from './utils/input.js'
 
 /**
@@ -10,7 +11,7 @@ export default async function onboard ({ client, logger }, { org, username, join
   const joiningUser = await client.getUserInfo(username)
   if (!await confirm(`Are you sure you want to onboard ${joiningUser.login} [${joiningUser.name}] to ${org}?`)) {
     logger.warn('Aborting onboarding')
-    process.exit(0)
+    exit(0)
   }
 
   const orgData = await client.getOrgData(org)
@@ -23,7 +24,7 @@ export default async function onboard ({ client, logger }, { org, username, join
   const wrongInputTeams = joiningTeams.difference(teamSlugs)
   if (wrongInputTeams.size) {
     logger.error('Team %s not found in organization %s', [...wrongInputTeams], org)
-    process.exit(1)
+    exit(1)
   }
 
   if (dryRun) {

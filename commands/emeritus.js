@@ -1,8 +1,8 @@
 /**
  * Finds inactive members in an organization for the given number of months
  * and opens an issue in the repository to propose moving them to the emeritus team.
- * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps
- * @param {{ org: string, monthsInactiveThreshold: number, dryRun: boolean }} options
+ * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
+ * @param {{ org: string, monthsInactiveThreshold: number, dryRun: boolean }} options - Command options.
  * @returns {Promise<void>}
  */
 export default async function emeritus ({ client, logger }, { org, monthsInactiveThreshold, dryRun }) {
@@ -67,11 +67,21 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
   }
 }
 
+/**
+ * Returns a filter function that checks if a member is not part of the lead team.
+ * @param {import('../github-api.js').Team} leadTeam - The lead team.
+ * @returns {(member: { user: string }) => boolean} Filter function.
+ */
 function isNotLead (leadTeam) {
   const leads = leadTeam.members.map(member => member.login)
   return member => !leads.includes(member.user)
 }
 
+/**
+ * Returns a filter function that checks if a member has been inactive for the specified number of months.
+ * @param {number} monthsInactiveThreshold - The number of months of inactivity to consider a member emeritus.
+ * @returns {(member: { lastPR: Date | null, lastIssue: Date | null, lastCommit: Date | null }) => boolean} Filter function.
+ */
 function isEmeritus (monthsInactiveThreshold) {
   const now = new Date()
   return function filter (member) {

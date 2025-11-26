@@ -2,8 +2,8 @@ import { confirm } from './utils/input.js'
 import { removeFromNpm } from './utils/remove-from-npm.js'
 /**
  * Offboards a user from an organization.
- * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps
- * @param {{ org: string, username: string, joiningTeams: Set, dryRun: boolean }} options
+ * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
+ * @param {{ org: string, username: string, joiningTeams: Set, dryRun: boolean }} options - Command options.
  * @returns {Promise<void>}
  */
 export default async function offboard ({ logger, client }, { org, username, dryRun }) {

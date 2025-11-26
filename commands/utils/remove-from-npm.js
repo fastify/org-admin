@@ -1,6 +1,13 @@
 import { spawn } from 'node:child_process'
 import { askForInput } from './input.js'
 
+/**
+ * Runs a command using `child_process.spawn`, returning the stdout on success.
+ * @param {string} cmd - The command to execute.
+ * @param {string[]} args - Array of arguments to pass to the command.
+ * @returns {Promise<string>} A promise that resolves with the trimmed stdout on success or rejects with an Error on failure.
+ * @throws {Error} Throws an error if the command exits with a non-zero code, including stdout and stderr in the error message.
+ */
 function runSpawn (cmd, args) {
   return new Promise((resolve, reject) => {
     const cli = spawn(cmd, args, { env: process.env })
@@ -20,6 +27,14 @@ function runSpawn (cmd, args) {
   })
 }
 
+/**
+ * Removes a user from an NPM organization team, prompting for OTP if required.
+ * @param {string} org - The NPM organization name.
+ * @param {string} teamSlug - The team slug.
+ * @param {string} username - The NPM username to remove from the team.
+ * @returns {Promise<void>} A promise that resolves when the user is successfully removed.
+ * @throws {Error} Throws an error if the npm command fails for reasons other than missing OTP.
+ */
 export async function removeFromNpm (org, teamSlug, username) {
   const baseArgs = ['team', 'rm', `@${org}:${teamSlug}`, username]
 

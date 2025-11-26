@@ -46,7 +46,7 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
 
   if (dryRun) {
     logger.info('[DRY-RUN] These users should be added to emeritus team:')
-    usersToEmeritus.forEach(user => logger.info(`- @${user.user}`))
+    usersToEmeritus.forEach(user => { logger.info(`- @${user.user}`) })
   } else {
     if (usersToEmeritus.length > 0) {
       await client.createIssue(

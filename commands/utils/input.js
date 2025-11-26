@@ -1,3 +1,4 @@
+import { stdin, stdout } from 'node:process'
 import readline from 'node:readline/promises'
 
 /**
@@ -17,8 +18,8 @@ export async function confirm (q) {
  */
 export async function askForInput (message) {
   const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
+    input: stdin,
+    output: stdout
   })
   const answer = await rl.question(message)
   rl.close()

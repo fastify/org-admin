@@ -1,3 +1,4 @@
+import { exit } from 'node:process'
 import { confirm } from './utils/input.js'
 import { removeFromNpm } from './utils/remove-from-npm.js'
 /**
@@ -10,7 +11,7 @@ export default async function offboard ({ logger, client }, { org, username, dry
   const joiningUser = await client.getUserInfo(username)
   if (!await confirm(`Are you sure you want to offboard ${joiningUser.login} [${joiningUser.name}] to ${org}?`)) {
     logger.warn('Aborting offboarding')
-    process.exit(0)
+    exit(0)
   }
 
   const orgData = await client.getOrgData(org)

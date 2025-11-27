@@ -16,7 +16,7 @@ jobs:
       # Required to read repository contents
       contents: read
       # Required to create issues
-      pull-requests: write
+      issues: write
     runs-on: ubuntu-latest
 
     steps:

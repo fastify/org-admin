@@ -8,13 +8,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  # Required to read repository contents
   contents: read
-  # Required to create issues
-  issues: write
 
 jobs:
   emeritus-check:
+    permissions:
+      # Required to read repository contents
+      contents: write
+      # Required to create issues
+      pull-requests: write
     runs-on: ubuntu-latest
 
     steps:

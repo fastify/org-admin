@@ -21,7 +21,7 @@
     "lint": "eslint . --ext .js,.ts",
     "lint:fix": "eslint . --ext .js,.ts --fix",
     "try:emeritus": "node --env-file=.env index.js emeritus --monthsInactiveThreshold 24 --dryRun",
-    "test": "exit 1"
+    "test": "node --test test/**/*.test.js"
   },
   "repository": {
     "type": "git",

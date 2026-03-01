@@ -8,7 +8,7 @@
     "adminify": "index.js"
   },
   "devDependencies": {
-    "eslint": "^9.32.0",
+    "eslint": "^10.0.2",
     "neostandard": "^0.12.2"
   },
   "dependencies": {

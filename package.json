@@ -2,6 +2,7 @@
   "name": "@fastify/org-admin",
   "version": "1.0.0",
   "description": "Fastify Org Admin scripts",
+  "private": true,
   "main": "index.js",
   "type": "module",
   "bin": {
@@ -42,8 +43,5 @@
       "type": "opencollective",
       "url": "https://opencollective.com/fastify"
     }
-  ],
-  "publishConfig": {
-    "access": "public"
-  }
+  ]
 }

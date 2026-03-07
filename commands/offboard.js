@@ -49,20 +49,21 @@ export default async function offboard ({ logger, client }, { org, username, dry
     ...userTeams
   ]
 
+  const npmHandle = joiningUser.socialAccounts.nodes?.find(account => account.provider === 'NPM')?.displayName ?? joiningUser.login
   for (const team of userNpmTeams) {
     if (dryRun) {
-      logger.warn('[DRY RUN] This user %s will be removed from NPM team %s', joiningUser.login, team.slug)
+      logger.warn('[DRY RUN] This user %s will be removed from NPM team %s', npmHandle, team.slug)
       continue
     }
 
     try {
-      logger.debug('Removing %s from NPM team %s', joiningUser.login, team.slug)
-      await removeFromNpm(org, team.slug, joiningUser.login)
-      logger.info('Removed %s from NPM team %s', joiningUser.login, team.slug)
+      logger.debug('Removing %s from NPM team %s', npmHandle, team.slug)
+      await removeFromNpm(org, team.slug, npmHandle)
+      logger.info('Removed %s from NPM team %s', npmHandle, team.slug)
     } catch (error) {
-      logger.error('Failed to remove %s from NPM team %s', joiningUser.login, team.slug)
+      logger.error('Failed to remove %s from NPM team %s', npmHandle, team.slug)
       logger.error(error)
     }
   }
-  logger.info('NPM offboarding completed for user %s ✅ ', joiningUser.login)
+  logger.info('NPM offboarding completed for user %s ✅ ', npmHandle)
 }

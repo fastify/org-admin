@@ -50,7 +50,7 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
   } else {
     if (usersToEmeritus.length > 0) {
       await client.createIssue(
-        orgData.name,
+        orgData.name.toLowerCase(),
         'org-admin',
         'Move to emeritus members',
       `The following users have been inactive for more than ${monthsInactiveThreshold} months

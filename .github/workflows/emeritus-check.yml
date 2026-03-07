@@ -13,10 +13,8 @@ permissions:
 jobs:
   emeritus-check:
     permissions:
-      # Required to read repository contents
       contents: read
-      # Required to create issues
-      issues: write
+      issues: read
     runs-on: ubuntu-latest
 
     steps:
@@ -36,5 +34,5 @@ jobs:
 
       - name: Run emeritus check
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.ORG_TOKEN }}
         run: node index.js emeritus --monthsInactiveThreshold 12 --org fastify

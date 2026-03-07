@@ -57,7 +57,7 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
         and should be added to the emeritus team to control the access to the Fastify organization
         and secure the organization's repositories:
 
-        ${usersToEmeritus.map(user => `- @${user.user}`).join('\n')}
+${usersToEmeritus.map(user => `- @${user.user}`).join('\n')}
 
         \nComment here if you don't want to be moved to emeritus team and confirm that your account
         is still monitored and secured.`,

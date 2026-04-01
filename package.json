@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "eslint": "^9.32.0",
-    "neostandard": "^0.12.2"
+    "neostandard": "^0.13.0"
   },
   "dependencies": {
     "@octokit/graphql": "^9.0.1",

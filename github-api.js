@@ -202,6 +202,69 @@ export default class AdminClient {
   }
 
   /**
+   * Fetches all GitHub Sponsors of an organization using the GraphQL API, handling pagination.
+   * Public sponsors are always returned; private sponsors are included only when the
+   * authenticated token belongs to the organization.
+   * @param {string} orgName - The login name of the GitHub organization.
+   * @returns {Promise<Sponsor[]>} Array of normalized sponsor objects.
+   */
+  async getGithubSponsors (orgName) {
+    let cursor = null
+    let hasNextPage = true
+    const sponsorsData = []
+
+    const sponsorsQuery = `
+      query ($orgName: String!, $cursor: String) {
+        organization(login: $orgName) {
+          sponsorshipsAsMaintainer(first: 100, after: $cursor, includePrivate: true) {
+            totalCount
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              createdAt
+              privacyLevel
+              isOneTimePayment
+              tier {
+                name
+                monthlyPriceInDollars
+                isOneTime
+              }
+              sponsorEntity {
+                __typename
+                ... on User {
+                  login
+                  name
+                  url
+                }
+                ... on Organization {
+                  login
+                  name
+                  url
+                }
+              }
+            }
+          }
+        }
+      }
+    `
+
+    while (hasNextPage) {
+      const variables = { orgName, cursor }
+      const response = await this.graphqlClient(sponsorsQuery, variables)
+
+      const { nodes, pageInfo } = response.organization.sponsorshipsAsMaintainer
+      sponsorsData.push(...nodes.map(transformGqlSponsor))
+
+      cursor = pageInfo.endCursor
+      hasNextPage = pageInfo.hasNextPage
+    }
+
+    return sponsorsData
+  }
+
+  /**
    * Fetches user information from GitHub using the GraphQL API.
    * @param {string} username - The GitHub username.
    * @returns {Promise<any>} The user information.
@@ -342,6 +405,27 @@ function transformGqlMember ({ node }) {
 }
 
 /**
+ * Transforms a GitHub GraphQL sponsorship node into a normalized sponsor object.
+ * @param {object} sponsorship - The GitHub GraphQL sponsorship node.
+ * @returns {Sponsor} The normalized sponsor object.
+ */
+function transformGqlSponsor (sponsorship) {
+  const entity = sponsorship.sponsorEntity ?? {}
+  return {
+    source: 'github',
+    login: entity.login ?? null,
+    name: entity.name ?? null,
+    url: entity.url ?? null,
+    type: entity.__typename ?? null,
+    tier: sponsorship.tier?.name ?? null,
+    monthlyPriceInDollars: sponsorship.tier?.monthlyPriceInDollars ?? null,
+    isOneTime: sponsorship.isOneTimePayment ?? sponsorship.tier?.isOneTime ?? null,
+    privacyLevel: sponsorship.privacyLevel ?? null,
+    createdAt: sponsorship.createdAt ?? null,
+  }
+}
+
+/**
  * Converts a date string to a Date object, or returns null if the string is falsy.
  * @param {string} dateStr - The date string to convert.
  * @returns {Date|null} The Date object or null.
@@ -375,4 +459,18 @@ function toDate (dateStr) {
  * @property {Date|null} lastIssue - The date of the user's last issue contribution.
  * @property {Date|null} lastCommit - The date of the user's last commit contribution.
  * @property {object[]} [socialAccounts] - The user's social accounts.
+ */
+
+/**
+ * @typedef {object} Sponsor
+ * @property {string} source - The funding platform the sponsor comes from (e.g. 'github').
+ * @property {string|null} login - The sponsor's login/handle.
+ * @property {string|null} name - The sponsor's display name.
+ * @property {string|null} url - The sponsor's profile URL.
+ * @property {string|null} type - The sponsor entity type ('User' or 'Organization').
+ * @property {string|null} tier - The sponsorship tier name.
+ * @property {number|null} monthlyPriceInDollars - The tier's monthly price in dollars.
+ * @property {boolean|null} isOneTime - Whether the sponsorship is a one-time payment.
+ * @property {string|null} privacyLevel - The sponsorship privacy level ('PUBLIC' or 'PRIVATE').
+ * @property {string|null} createdAt - When the sponsorship started (ISO date string).
  */

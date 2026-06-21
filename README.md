@@ -48,6 +48,22 @@ For the fastify organization, the command would look like:
 node --env-file=.env index.js emeritus --monthsInactiveThreshold 24
 ```
 
+### List sponsors
+
+This command reads the organization's sponsors and lists them.
+Currently it fetches the GitHub Sponsors of the organization (Open Collective backers
+will be added later). The list is logged and written to a `sponsors.json` file.
+
+```bash
+node --env-file=.env index.js sponsors --org <org>
+```
+
+For the fastify organization, the command would look like:
+
+```bash
+node --env-file=.env index.js sponsors
+```
+
 ## License
 
 Licensed under [MIT](./LICENSE).

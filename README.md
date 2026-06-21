@@ -51,10 +51,17 @@ node --env-file=.env index.js emeritus --monthsInactiveThreshold 24
 ### List sponsors
 
 This command reads the organization's sponsors from both GitHub Sponsors and
-Open Collective and lists them. Recurring sponsors that stopped paying (cancelled
-or overdue) are flagged as `lapsed`. The list is logged and written to a
-`sponsors.json` file with three keys: `github`, `openCollective` and `flagged`
-(the lapsed sponsors across both sources).
+Open Collective and lists the **recurring tier sponsors** — those whose normalized
+monthly contribution reaches at least the lowest tier. Each sponsor is tagged with
+its tier (the highest tier its monthly amount meets, rounding down) and the combined
+list is ordered by monthly contribution descending. Recurring sponsors that stopped
+paying (cancelled or overdue) are flagged as `lapsed`.
+
+The default tiers are tier 1 = $5/mo, tier 2 = $50/mo, tier 3 = $100/mo and
+tier 4 = $300/mo (configurable in `commands/sponsors.js`). One-time payments and
+sub-tier contributions are excluded. The result is logged and written to a
+`sponsors.json` file with three keys: `tiers` (the tier definitions), `sponsors`
+(the combined tier list) and `flagged` (the lapsed tier sponsors).
 
 ```bash
 node --env-file=.env index.js sponsors --org <org>

@@ -516,6 +516,7 @@ function transformGqlSponsor (sponsorship) {
   const entity = sponsorship.sponsorEntity ?? {}
   const isOneTime = sponsorship.isOneTimePayment ?? sponsorship.tier?.isOneTime ?? false
   const isActive = sponsorship.isActive ?? true
+  const amount = sponsorship.tier?.monthlyPriceInDollars ?? null
   return {
     source: 'github',
     login: entity.login ?? null,
@@ -523,7 +524,8 @@ function transformGqlSponsor (sponsorship) {
     url: entity.url ?? null,
     type: entity.__typename ?? null,
     tier: sponsorship.tier?.name ?? null,
-    amount: sponsorship.tier?.monthlyPriceInDollars ?? null,
+    amount,
+    monthlyAmount: isOneTime ? null : amount,
     currency: 'USD',
     frequency: isOneTime ? 'ONETIME' : 'MONTHLY',
     isOneTime,
@@ -564,6 +566,13 @@ function transformOcOrder (order, now) {
   const entity = order.fromAccount ?? {}
   const isRecurring = order.frequency === 'MONTHLY' || order.frequency === 'YEARLY'
   const isOverdue = order.nextChargeDate ? new Date(order.nextChargeDate) < now : false
+  const amount = order.amount?.value ?? null
+  let monthlyAmount = null
+  if (amount !== null && order.frequency === 'MONTHLY') {
+    monthlyAmount = amount
+  } else if (amount !== null && order.frequency === 'YEARLY') {
+    monthlyAmount = amount / 12
+  }
   return {
     source: 'opencollective',
     login: entity.slug ?? null,
@@ -571,7 +580,8 @@ function transformOcOrder (order, now) {
     url: entity.website ?? (entity.slug ? `https://opencollective.com/${entity.slug}` : null),
     type: entity.type ?? null,
     tier: order.tier?.name ?? null,
-    amount: order.amount?.value ?? null,
+    amount,
+    monthlyAmount,
     currency: order.amount?.currency ?? null,
     frequency: order.frequency ?? null,
     isOneTime: order.frequency === 'ONETIME',
@@ -629,6 +639,7 @@ function toDate (dateStr) {
  * @property {string|null} type - The sponsor entity type ('User'/'Organization' or 'INDIVIDUAL'/'ORGANIZATION').
  * @property {string|null} tier - The sponsorship/contribution tier name.
  * @property {number|null} amount - The contribution amount in `currency` (monthly price for recurring GitHub tiers).
+ * @property {number|null} monthlyAmount - The normalized monthly contribution (yearly ÷ 12); null for one-time payments.
  * @property {string|null} currency - The contribution currency (e.g. 'USD').
  * @property {string|null} frequency - The contribution cadence ('ONETIME', 'MONTHLY' or 'YEARLY').
  * @property {boolean} isOneTime - Whether the contribution is a one-time payment.

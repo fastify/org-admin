@@ -213,10 +213,13 @@ export default class AdminClient {
     let hasNextPage = true
     const sponsorsData = []
 
+    // activeOnly: false also returns ended sponsorships, so a recurring sponsor
+    // that cancelled (isActive: false) can be flagged as lapsed. GitHub does not
+    // expose individual charges, so there is no per-payment date to read.
     const sponsorsQuery = `
       query ($orgName: String!, $cursor: String) {
         organization(login: $orgName) {
-          sponsorshipsAsMaintainer(first: 100, after: $cursor, includePrivate: true) {
+          sponsorshipsAsMaintainer(first: 100, after: $cursor, includePrivate: true, activeOnly: false) {
             totalCount
             pageInfo {
               hasNextPage
@@ -224,6 +227,8 @@ export default class AdminClient {
             }
             nodes {
               createdAt
+              tierSelectedAt
+              isActive
               privacyLevel
               isOneTimePayment
               tier {
@@ -262,6 +267,101 @@ export default class AdminClient {
     }
 
     return sponsorsData
+  }
+
+  /**
+   * Fetches all Open Collective backers of a collective using the public GraphQL v2 API.
+   * Reading backers is public and needs no authentication; if `OC_PERSONAL_TOKEN` is set
+   * it is sent to raise rate limits. Drives off incoming orders (the source of payment
+   * truth) so recurring contributions that lapsed can be flagged.
+   * @param {string} slug - The Open Collective collective slug (e.g. 'fastify').
+   * @returns {Promise<Sponsor[]>} Array of normalized sponsor objects, one per backer.
+   */
+  async getOpenCollectiveSponsors (slug) {
+    const ordersQuery = `
+      query ($slug: String!, $limit: Int!, $offset: Int!) {
+        account(slug: $slug) {
+          orders(filter: INCOMING, limit: $limit, offset: $offset) {
+            totalCount
+            nodes {
+              id
+              status
+              frequency
+              lastChargedAt
+              nextChargeDate
+              createdAt
+              amount { value currency }
+              tier { name }
+              fromAccount { name slug type imageUrl website }
+            }
+          }
+        }
+      }
+    `
+
+    const limit = 100
+    let offset = 0
+    let totalCount = Infinity
+    const orders = []
+
+    while (offset < totalCount) {
+      const variables = { slug, limit, offset }
+      const response = await this.#openCollectiveRequest(ordersQuery, variables)
+
+      const ordersPage = response.account?.orders
+      if (!ordersPage) {
+        throw new Error(`Open Collective collective not found: ${slug}`)
+      }
+
+      totalCount = ordersPage.totalCount
+      orders.push(...ordersPage.nodes)
+      offset += limit
+    }
+
+    // A backer can have several orders over time (e.g. a cancelled monthly plus a
+    // later one-off). Collapse to one representative order per backer so the lapsed
+    // flag reflects their current standing: prefer a recurring order, newest first.
+    const now = new Date()
+    const byBacker = new Map()
+    for (const order of orders) {
+      const key = order.fromAccount?.slug ?? order.id
+      const current = byBacker.get(key)
+      if (!current || isMoreRepresentativeOrder(order, current)) {
+        byBacker.set(key, order)
+      }
+    }
+
+    return [...byBacker.values()].map((order) => transformOcOrder(order, now))
+  }
+
+  /**
+   * Sends a GraphQL request to the Open Collective v2 API.
+   * @param {string} query - The GraphQL query string.
+   * @param {object} variables - The query variables.
+   * @returns {Promise<object>} The `data` payload of the response.
+   */
+  async #openCollectiveRequest (query, variables) {
+    const headers = { 'Content-Type': 'application/json' }
+    if (env.OC_PERSONAL_TOKEN) {
+      headers['Personal-Token'] = env.OC_PERSONAL_TOKEN
+    }
+
+    const response = await fetch('https://api.opencollective.com/graphql/v2', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query, variables }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Open Collective API request failed: ${response.status} ${response.statusText}`)
+    }
+
+    const payload = await response.json()
+    if (payload.errors) {
+      throw new Error(`Open Collective API error: ${payload.errors.map((e) => e.message).join('; ')}`)
+    }
+
+    return payload.data
   }
 
   /**
@@ -406,11 +506,16 @@ function transformGqlMember ({ node }) {
 
 /**
  * Transforms a GitHub GraphQL sponsorship node into a normalized sponsor object.
+ * A recurring sponsorship that is no longer active is flagged as lapsed; completed
+ * one-time payments are never lapsed. GitHub exposes no per-charge date, so
+ * `lastChargedAt`/`nextChargeDate` are always null for this source.
  * @param {object} sponsorship - The GitHub GraphQL sponsorship node.
  * @returns {Sponsor} The normalized sponsor object.
  */
 function transformGqlSponsor (sponsorship) {
   const entity = sponsorship.sponsorEntity ?? {}
+  const isOneTime = sponsorship.isOneTimePayment ?? sponsorship.tier?.isOneTime ?? false
+  const isActive = sponsorship.isActive ?? true
   return {
     source: 'github',
     login: entity.login ?? null,
@@ -418,10 +523,64 @@ function transformGqlSponsor (sponsorship) {
     url: entity.url ?? null,
     type: entity.__typename ?? null,
     tier: sponsorship.tier?.name ?? null,
-    monthlyPriceInDollars: sponsorship.tier?.monthlyPriceInDollars ?? null,
-    isOneTime: sponsorship.isOneTimePayment ?? sponsorship.tier?.isOneTime ?? null,
-    privacyLevel: sponsorship.privacyLevel ?? null,
+    amount: sponsorship.tier?.monthlyPriceInDollars ?? null,
+    currency: 'USD',
+    frequency: isOneTime ? 'ONETIME' : 'MONTHLY',
+    isOneTime,
+    status: isActive ? 'ACTIVE' : 'INACTIVE',
+    lastChargedAt: null,
+    nextChargeDate: null,
     createdAt: sponsorship.createdAt ?? null,
+    privacyLevel: sponsorship.privacyLevel ?? null,
+    lapsed: !isOneTime && !isActive,
+  }
+}
+
+/**
+ * Determines whether an Open Collective order better represents a backer's current
+ * standing than the one already kept. Recurring orders win over one-time ones;
+ * among equals, the most recently created wins.
+ * @param {object} candidate - The order being considered.
+ * @param {object} current - The order currently kept for this backer.
+ * @returns {boolean} True if `candidate` should replace `current`.
+ */
+function isMoreRepresentativeOrder (candidate, current) {
+  const recurring = (order) => order.frequency === 'MONTHLY' || order.frequency === 'YEARLY'
+  if (recurring(candidate) !== recurring(current)) {
+    return recurring(candidate)
+  }
+  return new Date(candidate.createdAt) > new Date(current.createdAt)
+}
+
+/**
+ * Transforms an Open Collective order node into a normalized sponsor object.
+ * A recurring order is flagged as lapsed when it is no longer ACTIVE or its next
+ * charge is already overdue. One-time contributions are never lapsed.
+ * @param {object} order - The Open Collective order node.
+ * @param {Date} now - The reference time used to detect overdue charges.
+ * @returns {Sponsor} The normalized sponsor object.
+ */
+function transformOcOrder (order, now) {
+  const entity = order.fromAccount ?? {}
+  const isRecurring = order.frequency === 'MONTHLY' || order.frequency === 'YEARLY'
+  const isOverdue = order.nextChargeDate ? new Date(order.nextChargeDate) < now : false
+  return {
+    source: 'opencollective',
+    login: entity.slug ?? null,
+    name: entity.name ?? null,
+    url: entity.website ?? (entity.slug ? `https://opencollective.com/${entity.slug}` : null),
+    type: entity.type ?? null,
+    tier: order.tier?.name ?? null,
+    amount: order.amount?.value ?? null,
+    currency: order.amount?.currency ?? null,
+    frequency: order.frequency ?? null,
+    isOneTime: order.frequency === 'ONETIME',
+    status: order.status ?? null,
+    lastChargedAt: order.lastChargedAt ?? null,
+    nextChargeDate: order.nextChargeDate ?? null,
+    createdAt: order.createdAt ?? null,
+    privacyLevel: null,
+    lapsed: isRecurring && (order.status !== 'ACTIVE' || isOverdue),
   }
 }
 
@@ -463,14 +622,20 @@ function toDate (dateStr) {
 
 /**
  * @typedef {object} Sponsor
- * @property {string} source - The funding platform the sponsor comes from (e.g. 'github').
- * @property {string|null} login - The sponsor's login/handle.
+ * @property {string} source - The funding platform ('github' or 'opencollective').
+ * @property {string|null} login - The sponsor's login/handle/slug.
  * @property {string|null} name - The sponsor's display name.
- * @property {string|null} url - The sponsor's profile URL.
- * @property {string|null} type - The sponsor entity type ('User' or 'Organization').
- * @property {string|null} tier - The sponsorship tier name.
- * @property {number|null} monthlyPriceInDollars - The tier's monthly price in dollars.
- * @property {boolean|null} isOneTime - Whether the sponsorship is a one-time payment.
- * @property {string|null} privacyLevel - The sponsorship privacy level ('PUBLIC' or 'PRIVATE').
- * @property {string|null} createdAt - When the sponsorship started (ISO date string).
+ * @property {string|null} url - The sponsor's profile or website URL.
+ * @property {string|null} type - The sponsor entity type ('User'/'Organization' or 'INDIVIDUAL'/'ORGANIZATION').
+ * @property {string|null} tier - The sponsorship/contribution tier name.
+ * @property {number|null} amount - The contribution amount in `currency` (monthly price for recurring GitHub tiers).
+ * @property {string|null} currency - The contribution currency (e.g. 'USD').
+ * @property {string|null} frequency - The contribution cadence ('ONETIME', 'MONTHLY' or 'YEARLY').
+ * @property {boolean} isOneTime - Whether the contribution is a one-time payment.
+ * @property {string|null} status - The platform-native status (GitHub 'ACTIVE'/'INACTIVE', Open Collective order status).
+ * @property {string|null} lastChargedAt - When the recurring contribution last charged (Open Collective only; null for GitHub).
+ * @property {string|null} nextChargeDate - When the recurring contribution is next due (Open Collective only; null for GitHub).
+ * @property {string|null} createdAt - When the sponsorship/contribution started (ISO date string).
+ * @property {string|null} privacyLevel - The GitHub sponsorship privacy level ('PUBLIC'/'PRIVATE'); null for Open Collective.
+ * @property {boolean} lapsed - Whether a recurring sponsor stopped paying (cancelled/overdue); always false for one-time.
  */

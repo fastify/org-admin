@@ -50,9 +50,11 @@ node --env-file=.env index.js emeritus --monthsInactiveThreshold 24
 
 ### List sponsors
 
-This command reads the organization's sponsors and lists them.
-Currently it fetches the GitHub Sponsors of the organization (Open Collective backers
-will be added later). The list is logged and written to a `sponsors.json` file.
+This command reads the organization's sponsors from both GitHub Sponsors and
+Open Collective and lists them. Recurring sponsors that stopped paying (cancelled
+or overdue) are flagged as `lapsed`. The list is logged and written to a
+`sponsors.json` file with three keys: `github`, `openCollective` and `flagged`
+(the lapsed sponsors across both sources).
 
 ```bash
 node --env-file=.env index.js sponsors --org <org>
@@ -63,6 +65,14 @@ For the fastify organization, the command would look like:
 ```bash
 node --env-file=.env index.js sponsors
 ```
+
+Reading Open Collective backers is public and needs no token. Open Collective
+exposes per-charge data, so a lapsed contribution shows its `lastChargedAt` /
+`nextChargeDate`. GitHub does not expose individual charges, so a GitHub sponsor
+is only flagged as `lapsed` when a recurring sponsorship has been cancelled
+(its `lastChargedAt` is always `null`). To raise the Open Collective rate limit
+you may optionally set `OC_PERSONAL_TOKEN` in `.env` (a personal token from your
+own account — Open Collective has no org-level token).
 
 ## License
 

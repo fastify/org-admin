@@ -7,6 +7,7 @@ import AdminClient from './github-api.js'
 import onboard from './commands/onboard.js'
 import offboard from './commands/offboard.js'
 import emeritus from './commands/emeritus.js'
+import sponsors from './commands/sponsors.js'
 
 const logger = pino({
   level: 'debug',
@@ -19,7 +20,7 @@ const logger = pino({
 })
 
 const options = {
-  commands: ['onboard', 'offboard', 'emeritus'],
+  commands: ['onboard', 'offboard', 'emeritus', 'sponsors'],
   options: {
     dryRun: { type: 'boolean', default: false },
     username: { type: 'string', multiple: false, default: undefined },
@@ -70,5 +71,8 @@ switch (command) {
   }
   case 'emeritus':
     await emeritus(technicalOptions, { dryRun, org, monthsInactiveThreshold })
+    break
+  case 'sponsors':
+    await sponsors(technicalOptions, { org })
     break
 }

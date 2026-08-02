@@ -8,6 +8,7 @@ import onboard from './commands/onboard.js'
 import offboard from './commands/offboard.js'
 import emeritus from './commands/emeritus.js'
 import sponsors from './commands/sponsors.js'
+import syncNpmOrg from './commands/sync-npm-org.js'
 
 const logger = pino({
   level: 'debug',
@@ -20,7 +21,7 @@ const logger = pino({
 })
 
 const options = {
-  commands: ['onboard', 'offboard', 'emeritus', 'sponsors'],
+  commands: ['onboard', 'offboard', 'emeritus', 'sponsors', 'sync-npm-org'],
   options: {
     dryRun: { type: 'boolean', default: false },
     username: { type: 'string', multiple: false, default: undefined },
@@ -74,5 +75,8 @@ switch (command) {
     break
   case 'sponsors':
     await sponsors(technicalOptions, { org })
+    break
+  case 'sync-npm-org':
+    await syncNpmOrg(technicalOptions, { org })
     break
 }

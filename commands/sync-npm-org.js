@@ -265,7 +265,7 @@ function npmJson (args) {
  * @returns {Promise<{ repo: string|null, deprecated: boolean }>} The resolved metadata.
  */
 async function fetchPackageMeta (pkg) {
-  const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(pkg).replace('%40', '@')}`)
+  const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(pkg).replace(/%40/g, '@')}`)
   if (!response.ok) {
     return { repo: null, deprecated: false }
   }

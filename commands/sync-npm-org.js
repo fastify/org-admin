@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { npmJson } from './utils/npm-json.js'
 
 const COMMANDS_FILE = './npm-org-sync.sh'
 const REPORT_FILE = './npm-org-sync.json'
@@ -120,7 +120,13 @@ function reconcile ({ pkg, org, expected, currentTeams, inDevelopers, meta, topi
 
   // (5) No topic matched and the package is not deprecated: report only.
   if (expected === UNKNOWN_BUCKET) {
-    situations.push(topics === null ? 'no repository resolved on npm' : 'no bucket topic on repository')
+    if (meta.repo === null) {
+      situations.push('no repository resolved on npm')
+    } else if (topics === null) {
+      situations.push(`repository ${meta.repo} not found in GitHub org (topics unavailable)`)
+    } else {
+      situations.push('no bucket topic on repository')
+    }
     // Still surface a stale membership so it is not silently kept.
     for (const team of currentTeams) {
       situations.push(`still in ${team} without a matching topic — review`)
@@ -246,16 +252,6 @@ function npmListTeamPackages (org, team) {
   } catch {
     return []
   }
-}
-
-/**
- * Runs an npm CLI command with `--json` and parses its stdout.
- * @param {string[]} args - The npm arguments (without `--json`).
- * @returns {any} The parsed JSON output.
- */
-function npmJson (args) {
-  const stdout = execFileSync('npm', [...args, '--json'], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
-  return JSON.parse(stdout)
 }
 
 /**

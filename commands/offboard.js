@@ -1,6 +1,7 @@
 import { exit } from 'node:process'
 import { confirm } from './utils/input.js'
 import { removeFromNpm } from './utils/remove-from-npm.js'
+import { listNpmTeams, listNpmTeamMembers } from './utils/npm-teams.js'
 /**
  * Offboards a user from an organization.
  * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
@@ -44,24 +45,24 @@ export default async function offboard ({ logger, client }, { org, username, dry
   logger.info('GitHub offboarding completed for user %s ✅ ', joiningUser.login)
 
   /** NPM Cleanup */
-  const userNpmTeams = [
-    { slug: 'developers' }, // NPM has a default team for every org
-    ...userTeams
-  ]
-
+  // The npm team layout does not mirror the GitHub teams.
   const npmHandle = joiningUser.socialAccounts.nodes?.find(account => account.provider === 'NPM')?.displayName ?? joiningUser.login
+
+  const userNpmTeams = listNpmTeams(org).filter(team => listNpmTeamMembers(org, team).includes(npmHandle))
+  logger.info('User %s belongs to %s NPM team(s): %s', npmHandle, userNpmTeams.length, userNpmTeams.join(', ') || 'none')
+
   for (const team of userNpmTeams) {
     if (dryRun) {
-      logger.warn('[DRY RUN] This user %s will be removed from NPM team %s', npmHandle, team.slug)
+      logger.warn('[DRY RUN] This user %s will be removed from NPM team %s', npmHandle, team)
       continue
     }
 
     try {
-      logger.debug('Removing %s from NPM team %s', npmHandle, team.slug)
-      await removeFromNpm(org, team.slug, npmHandle)
-      logger.info('Removed %s from NPM team %s', npmHandle, team.slug)
+      logger.debug('Removing %s from NPM team %s', npmHandle, team)
+      await removeFromNpm(org, team, npmHandle)
+      logger.info('Removed %s from NPM team %s', npmHandle, team)
     } catch (error) {
-      logger.error('Failed to remove %s from NPM team %s', npmHandle, team.slug)
+      logger.error('Failed to remove %s from NPM team %s', npmHandle, team)
       logger.error(error)
     }
   }

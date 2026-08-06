@@ -396,6 +396,27 @@ export default class AdminClient {
   }
 
   /**
+   * Fetches every repository of an organization together with its topics using the
+   * REST API, following pagination. Archived repositories are included so callers can
+   * decide how to treat them.
+   * @param {string} org - The organization name.
+   * @returns {Promise<RepoTopics[]>} Array of repositories with their topics.
+   */
+  async getOrgRepositories (org) {
+    const repos = await this.restClient.paginate(this.restClient.repos.listForOrg, {
+      org,
+      per_page: 100,
+      type: 'all',
+    })
+
+    return repos.map((repo) => ({
+      name: repo.name,
+      archived: repo.archived,
+      topics: repo.topics ?? [],
+    }))
+  }
+
+  /**
    * Add a user to a team in the organization using the REST API.
    * @param {string} org - The organization name.
    * @param {string} teamSlug - The team slug.
@@ -602,6 +623,13 @@ function transformOcOrder (order, now) {
 function toDate (dateStr) {
   return dateStr ? new Date(dateStr) : null
 }
+
+/**
+ * @typedef {object} RepoTopics
+ * @property {string} name - The repository name.
+ * @property {boolean} archived - Whether the repository is archived.
+ * @property {string[]} topics - The repository's GitHub topics.
+ */
 
 /**
  * @typedef {object} Team

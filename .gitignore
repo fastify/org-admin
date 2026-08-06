@@ -138,4 +138,8 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vscode/
+
+# Command output artifacts
 sponsors.json
+npm-org-sync.json
+npm-org-sync.sh

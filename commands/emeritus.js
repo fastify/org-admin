@@ -1,4 +1,10 @@
 /**
+ * Keyword a member must include in their comment to confirm their account is still
+ * monitored and secured. Matched case-insensitively against comment bodies.
+ */
+const CONFIRMATION_KEYWORD = '/confirm-active'
+
+/**
  * Finds inactive members in an organization for the given number of months
  * and opens an issue in the repository to propose moving them to the emeritus team.
  * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
@@ -32,10 +38,21 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
   const yearsToRead = Math.ceil(monthsInactiveThreshold / 12)
   const membersContributions = await client.getUsersContributions(orgData, membersList, yearsToRead)
 
+  // Members who commented a confirmation on a previous emeritus issue within the same
+  // inactivity window are considered "alive": they proved their account is still
+  // monitored and secured, so they must not be pinged again until the window elapses.
+  const confirmationSince = new Date()
+  confirmationSince.setMonth(confirmationSince.getMonth() - monthsInactiveThreshold)
+  const owner = orgData.name.toLowerCase()
+  const repo = 'org-admin'
+  const confirmedUsers = await client.getEmeritusConfirmations(owner, repo, confirmationSince, CONFIRMATION_KEYWORD)
+  logger.info('Total members that recently confirmed they are active: %s', confirmedUsers.size)
+
   const leadTeam = orgTeams.find(team => team.slug === 'leads')
   const usersThatShouldBeEmeritus = membersContributions
     .filter(isEmeritus(monthsInactiveThreshold))
     .filter(isNotLead(leadTeam))
+    .filter(isNotRecentlyConfirmed(confirmedUsers, logger))
   logger.info('Total emeritus members found: %s', usersThatShouldBeEmeritus.length)
 
   const emeritusTeam = orgTeams.find(team => team.slug === 'emeritus')
@@ -50,8 +67,8 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
   } else {
     if (usersToEmeritus.length > 0) {
       await client.createIssue(
-        orgData.name.toLowerCase(),
-        'org-admin',
+        owner,
+        repo,
         'Move to emeritus members',
       `The following users have been inactive for more than ${monthsInactiveThreshold} months
         and should be added to the emeritus team to control the access to the Fastify organization
@@ -59,9 +76,11 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
 
 ${usersToEmeritus.map(user => `- @${user.user}`).join('\n')}
 
-        \nComment here if you don't want to be moved to emeritus team and confirm that your account
-        is still monitored and secured.`,
-      ['question']
+        \nIf you don't want to be moved to the emeritus team, comment here with \`${CONFIRMATION_KEYWORD}\`
+        to confirm that your account is still monitored and secured. This confirmation is valid for
+        ${monthsInactiveThreshold} months, after which you'll be asked to confirm again — you never need
+        to open a pull request.`,
+      ['question', 'emeritus-check']
       )
     }
   }
@@ -75,6 +94,23 @@ ${usersToEmeritus.map(user => `- @${user.user}`).join('\n')}
 function isNotLead (leadTeam) {
   const leads = leadTeam.members.map(member => member.login)
   return member => !leads.includes(member.user)
+}
+
+/**
+ * Returns a filter function that excludes members who recently confirmed they are active
+ * by commenting on a previous emeritus issue, logging each one that is skipped.
+ * @param {Set<string>} confirmedUsers - Set of lowercased logins that recently confirmed.
+ * @param {import('pino').Logger} logger - Logger used to report skipped members.
+ * @returns {(member: { user: string }) => boolean} Filter function.
+ */
+function isNotRecentlyConfirmed (confirmedUsers, logger) {
+  return member => {
+    if (confirmedUsers.has(member.user.toLowerCase())) {
+      logger.info('Skipping @%s: recently confirmed their account is active', member.user)
+      return false
+    }
+    return true
+  }
 }
 
 /**

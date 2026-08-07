@@ -461,6 +461,69 @@ export default class AdminClient {
   }
 
   /**
+   * Reads back "proof of life" confirmations from previous emeritus-check issues.
+   *
+   * The emeritus check invites inactive members to comment on the tracking issue to
+   * confirm their account is still monitored and secured. This method scans the
+   * `emeritus-check` labelled issues updated since `sinceDate`, and returns the set of
+   * users who left a confirmation comment (one containing `keyword`) within the window,
+   * so they can be excluded from the next candidate list instead of being pinged again.
+   *
+   * Fails open: on any API error it logs a warning and returns an empty set, so a
+   * transient failure never causes an active, recently-confirmed member to be flagged
+   * as emeritus.
+   * @param {string} owner - The repository owner (org or user).
+   * @param {string} repo - The repository name.
+   * @param {Date} sinceDate - Only comments created at or after this date count.
+   * @param {string} keyword - Case-insensitive keyword a comment must contain to count.
+   * @returns {Promise<Set<string>>} Set of lowercased logins that recently confirmed.
+   */
+  async getEmeritusConfirmations (owner, repo, sinceDate, keyword) {
+    const confirmed = new Set()
+    const since = sinceDate.toISOString()
+    const needle = keyword.toLowerCase()
+
+    try {
+      const issues = await this.restClient.paginate(this.restClient.issues.listForRepo, {
+        owner,
+        repo,
+        labels: 'emeritus-check',
+        state: 'all',
+        since,
+        per_page: 100,
+      })
+
+      for (const issue of issues) {
+        const comments = await this.restClient.paginate(this.restClient.issues.listComments, {
+          owner,
+          repo,
+          issue_number: issue.number,
+          since,
+          per_page: 100,
+        })
+
+        for (const comment of comments) {
+          const login = comment.user?.login
+          if (!login) {
+            continue
+          }
+          if (new Date(comment.created_at) < sinceDate) {
+            continue
+          }
+          if ((comment.body ?? '').toLowerCase().includes(needle)) {
+            confirmed.add(login.toLowerCase())
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.warn({ owner, repo, error }, 'Failed to read emeritus confirmations; proceeding without exclusions')
+      return new Set()
+    }
+
+    return confirmed
+  }
+
+  /**
    * Creates a new issue in a repository using the REST API.
    * @param {string} owner - The repository owner (org or user).
    * @param {string} repo - The repository name.

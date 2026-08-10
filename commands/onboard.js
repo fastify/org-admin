@@ -1,20 +1,14 @@
-import { exit } from 'node:process'
-import { confirm } from './utils/input.js'
-import { listNpmTeams } from './utils/npm-teams.js'
+import { OrgAdminError } from './utils/errors.js'
+import { listNpmTeams as defaultListNpmTeams } from './utils/npm-teams.js'
 
 /**
  * Onboards a user to an organization.
- * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
+ * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger, listNpmTeams?: Function }} deps - Dependencies.
  * @param {{ org: string, username: string, joiningTeams: Set, dryRun: boolean }} options - Command options.
- * @returns {Promise<void>}
+ * @returns {Promise<object>}
  */
-export default async function onboard ({ client, logger }, { org, username, joiningTeams, dryRun }) {
+export default async function onboard ({ client, logger, listNpmTeams = defaultListNpmTeams }, { org, username, joiningTeams, dryRun }) {
   const joiningUser = await client.getUserInfo(username)
-  if (!await confirm(`Are you sure you want to onboard ${joiningUser.login} [${joiningUser.name}] to ${org}?`)) {
-    logger.warn('Aborting onboarding')
-    exit(0)
-  }
-
   const orgData = await client.getOrgData(org)
   logger.info('Organization ID %s', orgData.id)
 
@@ -24,8 +18,10 @@ export default async function onboard ({ client, logger }, { org, username, join
   const teamSlugs = new Set(orgTeams.map(t => t.slug))
   const wrongInputTeams = joiningTeams.difference(teamSlugs)
   if (wrongInputTeams.size) {
-    logger.error('Team %s not found in organization %s', [...wrongInputTeams], org)
-    exit(1)
+    throw new OrgAdminError(
+      'UNKNOWN_TEAM',
+      `Team ${[...wrongInputTeams].join(', ')} not found in organization ${org}`
+    )
   }
 
   if (dryRun) {
@@ -49,8 +45,20 @@ export default async function onboard ({ client, logger }, { org, username, join
   // publish buckets from the GitHub destination teams. List an `add` command for
   // every existing npm team and let the operator run only the needed ones.
   logger.info('2. Add the user to the relevant NPM teams. `developers` is the read-only baseline for every maintainer; the other teams grant publish rights on their packages — run ONLY the commands you need:')
-  for (const team of listNpmTeams(org)) {
-    logger.info('npm team add @%s:%s %s', org, team, npmHandle)
-  }
+  const npmCommands = listNpmTeams(org).map(team => `npm team add @${org}:${team} ${npmHandle}`)
+  npmCommands.forEach(command => { logger.info(command) })
   logger.info('When it will be done, the NPM onboarding will be completed for user %s ✅ ', npmHandle)
+
+  return {
+    command: 'onboard',
+    dryRun,
+    organization: orgData.name || org,
+    user: {
+      login: joiningUser.login,
+      name: joiningUser.name,
+      npmHandle,
+    },
+    teams: destinationTeams.map(team => team.slug),
+    npmCommands,
+  }
 }

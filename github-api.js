@@ -1,23 +1,29 @@
 import { env } from 'node:process'
 import { Octokit } from '@octokit/rest'
 import { graphql } from '@octokit/graphql'
+import { OrgAdminError } from './commands/utils/errors.js'
 
 export default class AdminClient {
-  /** @param {import('pino').Logger} [logger] - Optional logger instance, defaults to console. */
-  constructor (logger) {
-    if (!env.GITHUB_TOKEN) {
-      throw new Error('GITHUB_TOKEN environment variable is not set')
+  /**
+   * @param {import('pino').Logger|Console} [logger] - Optional logger instance, defaults to console.
+   * @param {{ githubToken?: string, openCollectiveToken?: string }} [credentials] - Explicit credentials, with environment fallbacks.
+   */
+  constructor (logger, credentials = {}) {
+    const githubToken = credentials.githubToken || env.GITHUB_TOKEN
+    if (!githubToken) {
+      throw new OrgAdminError('MISSING_CREDENTIAL', 'GITHUB_TOKEN environment variable is not set')
     }
 
     this.logger = logger || console
+    this.openCollectiveToken = credentials.openCollectiveToken || env.OC_PERSONAL_TOKEN
     this.restClient = new Octokit({
-      auth: env.GITHUB_TOKEN,
+      auth: githubToken,
       userAgent: 'fastify-org-admin-cli',
     })
 
     this.graphqlClient = graphql.defaults({
       headers: {
-        authorization: `token ${env.GITHUB_TOKEN}`,
+        authorization: `token ${githubToken}`,
       },
     })
   }
@@ -342,8 +348,8 @@ export default class AdminClient {
    */
   async #openCollectiveRequest (query, variables) {
     const headers = { 'Content-Type': 'application/json' }
-    if (env.OC_PERSONAL_TOKEN) {
-      headers['Personal-Token'] = env.OC_PERSONAL_TOKEN
+    if (this.openCollectiveToken) {
+      headers['Personal-Token'] = this.openCollectiveToken
     }
 
     const response = await fetch('https://api.opencollective.com/graphql/v2', {

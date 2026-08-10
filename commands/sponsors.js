@@ -1,7 +1,3 @@
-import { writeFileSync } from 'node:fs'
-
-const OUTPUT_FILE = './sponsors.json'
-
 /**
  * Fastify's sponsorship tiers, defined by their minimum monthly contribution in
  * dollars. A sponsor is assigned the highest tier whose threshold its monthly
@@ -72,8 +68,7 @@ export default async function sponsors ({ client, logger }, { org }) {
     flagged,
   }
 
-  writeFileSync(OUTPUT_FILE, JSON.stringify(result, null, 2))
-  logger.info('Sponsors written to %s', OUTPUT_FILE)
+  return result
 }
 
 /**

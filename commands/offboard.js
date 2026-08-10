@@ -1,20 +1,20 @@
-import { exit } from 'node:process'
-import { confirm } from './utils/input.js'
 import { removeFromNpm } from './utils/remove-from-npm.js'
-import { listNpmTeams, listNpmTeamMembers } from './utils/npm-teams.js'
+import { listNpmTeams as defaultListNpmTeams, listNpmTeamMembers as defaultListNpmTeamMembers } from './utils/npm-teams.js'
 /**
  * Offboards a user from an organization.
- * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
+ * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger, listNpmTeams?: Function, listNpmTeamMembers?: Function }} deps - Dependencies.
  * @param {{ org: string, username: string, joiningTeams: Set, dryRun: boolean }} options - Command options.
- * @returns {Promise<void>}
+ * @returns {Promise<object>}
  */
-export default async function offboard ({ logger, client }, { org, username, dryRun }) {
+export default async function offboard ({
+  logger,
+  client,
+  requestNpmOtp,
+  removeFromNpm: removeNpm = removeFromNpm,
+  listNpmTeams = defaultListNpmTeams,
+  listNpmTeamMembers = defaultListNpmTeamMembers,
+}, { org, username, dryRun }) {
   const joiningUser = await client.getUserInfo(username)
-  if (!await confirm(`Are you sure you want to offboard ${joiningUser.login} [${joiningUser.name}] to ${org}?`)) {
-    logger.warn('Aborting offboarding')
-    exit(0)
-  }
-
   const orgData = await client.getOrgData(org)
   logger.info('Organization ID %s', orgData.id)
   const orgTeams = await client.getOrgChart(orgData)
@@ -51,6 +51,7 @@ export default async function offboard ({ logger, client }, { org, username, dry
   const userNpmTeams = listNpmTeams(org).filter(team => listNpmTeamMembers(org, team).includes(npmHandle))
   logger.info('User %s belongs to %s NPM team(s): %s', npmHandle, userNpmTeams.length, userNpmTeams.join(', ') || 'none')
 
+  const npmFailures = []
   for (const team of userNpmTeams) {
     if (dryRun) {
       logger.warn('[DRY RUN] This user %s will be removed from NPM team %s', npmHandle, team)
@@ -59,12 +60,31 @@ export default async function offboard ({ logger, client }, { org, username, dry
 
     try {
       logger.debug('Removing %s from NPM team %s', npmHandle, team)
-      await removeFromNpm(org, team, npmHandle)
+      await removeNpm(org, team, npmHandle, { requestOtp: requestNpmOtp })
       logger.info('Removed %s from NPM team %s', npmHandle, team)
     } catch (error) {
+      if (error?.code === 'NPM_OTP_REQUIRED') {
+        throw error
+      }
       logger.error('Failed to remove %s from NPM team %s', npmHandle, team)
       logger.error(error)
+      npmFailures.push({ team, error: error.message })
     }
   }
   logger.info('NPM offboarding completed for user %s ✅ ', npmHandle)
+
+  return {
+    command: 'offboard',
+    dryRun,
+    organization: orgData.name || org,
+    user: {
+      login: joiningUser.login,
+      name: joiningUser.name,
+      npmHandle,
+    },
+    githubTeams: userTeams.map(team => team.slug),
+    emeritusTeamAdded: Boolean(emeritusTeam),
+    npmTeams: userNpmTeams,
+    npmFailures,
+  }
 }

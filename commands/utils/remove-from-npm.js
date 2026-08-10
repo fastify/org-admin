@@ -1,6 +1,6 @@
 import { env } from 'node:process'
 import { spawn } from 'node:child_process'
-import { askForInput } from './input.js'
+import { OrgAdminError } from './errors.js'
 
 /**
  * Runs a command using `child_process.spawn`, returning the stdout on success.
@@ -36,19 +36,31 @@ function runSpawn (cmd, args) {
  * @returns {Promise<void>} A promise that resolves when the user is successfully removed.
  * @throws {Error} Throws an error if the npm command fails for reasons other than missing OTP.
  */
-export async function removeFromNpm (org, teamSlug, username) {
+export async function removeFromNpm (org, teamSlug, username, options = {}) {
   const baseArgs = ['team', 'rm', `@${org}:${teamSlug}`, username]
+  const run = options.run || runSpawn
 
   try {
-    await runSpawn('npm', baseArgs)
+    await run('npm', baseArgs)
   } catch (error) {
     const isOtpNeeded = error.message.includes('npm ERR! code EOTP') || error.message.includes('one-time password')
     if (!isOtpNeeded) {
       throw error
     }
 
-    const otp = await askForInput('NPM OTP code is required to proceed:')
+    if (!options.requestOtp) {
+      throw new OrgAdminError(
+        'NPM_OTP_REQUIRED',
+        'npm requires a one-time password; run interactively or provide npm OTP configuration',
+        { cause: error }
+      )
+    }
+
+    const otp = await options.requestOtp()
+    if (!otp) {
+      throw new OrgAdminError('NPM_OTP_REQUIRED', 'npm one-time password was not provided')
+    }
     const otpArgs = [...baseArgs, '--otp', otp]
-    await runSpawn('npm', otpArgs)
+    await run('npm', otpArgs)
   }
 }

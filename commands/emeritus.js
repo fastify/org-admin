@@ -1,9 +1,11 @@
+import { OrgAdminError } from './utils/errors.js'
+
 /**
  * Finds inactive members in an organization for the given number of months
  * and opens an issue in the repository to propose moving them to the emeritus team.
  * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
  * @param {{ org: string, monthsInactiveThreshold: number, dryRun: boolean }} options - Command options.
- * @returns {Promise<void>}
+ * @returns {Promise<object>}
  */
 export default async function emeritus ({ client, logger }, { org, monthsInactiveThreshold, dryRun }) {
   logger.info('Running emeritus command for organization: %s', org)
@@ -33,17 +35,24 @@ export default async function emeritus ({ client, logger }, { org, monthsInactiv
   const membersContributions = await client.getUsersContributions(orgData, membersList, yearsToRead)
 
   const leadTeam = orgTeams.find(team => team.slug === 'leads')
+  if (!leadTeam) {
+    throw new OrgAdminError('UNKNOWN_TEAM', `Team leads not found in organization ${org}`)
+  }
   const usersThatShouldBeEmeritus = membersContributions
     .filter(isEmeritus(monthsInactiveThreshold))
     .filter(isNotLead(leadTeam))
   logger.info('Total emeritus members found: %s', usersThatShouldBeEmeritus.length)
 
   const emeritusTeam = orgTeams.find(team => team.slug === 'emeritus')
+  if (!emeritusTeam) {
+    throw new OrgAdminError('UNKNOWN_TEAM', `Team emeritus not found in organization ${org}`)
+  }
   const currentEmeritusUsers = emeritusTeam.members.map(member => member.login)
 
   const usersToEmeritus = usersThatShouldBeEmeritus.filter(user => currentEmeritusUsers.includes(user.user) === false)
   logger.debug('Total users to move to emeritus team: %s', usersToEmeritus.length)
 
+  let issueCreated = false
   if (dryRun) {
     logger.info('[DRY-RUN] These users should be added to emeritus team:')
     usersToEmeritus.forEach(user => { logger.info(`- @${user.user}`) })
@@ -63,7 +72,16 @@ ${usersToEmeritus.map(user => `- @${user.user}`).join('\n')}
         is still monitored and secured.`,
       ['question']
       )
+      issueCreated = true
     }
+  }
+
+  return {
+    command: 'emeritus',
+    dryRun,
+    organization: orgData.name || org,
+    candidates: usersToEmeritus.map(user => user.user),
+    issueCreated,
   }
 }
 

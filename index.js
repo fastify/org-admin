@@ -20,6 +20,16 @@ const logger = pino({
   }
 })
 
+// Read the env vars this CLI consumes explicitly. Nothing below this file
+// should touch `process.env` directly — values are passed down as named args.
+const githubToken = process.env.GITHUB_TOKEN
+const ocPersonalToken = process.env.OC_PERSONAL_TOKEN
+
+if (!githubToken) {
+  logger.error('GITHUB_TOKEN environment variable is not set')
+  process.exit(1)
+}
+
 const options = {
   commands: ['onboard', 'offboard', 'emeritus', 'sponsors', 'sync-npm-org'],
   options: {
@@ -45,8 +55,8 @@ if (!options.commands.includes(command)) {
   process.exit(1)
 }
 
-const client = new AdminClient(logger)
-const technicalOptions = { client, logger }
+const client = new AdminClient({ githubToken, ocPersonalToken, logger })
+const deps = { client, logger }
 
 switch (command) {
   case 'onboard':
@@ -64,19 +74,19 @@ switch (command) {
       }
 
       const joiningTeams = new Set(parsed.values.team)
-      await onboard(technicalOptions, { username, dryRun, org, joiningTeams })
+      await onboard(deps, { org, username, joiningTeams, dryRun })
     } else {
-      await offboard(technicalOptions, { username, dryRun, org })
+      await offboard(deps, { org, username, dryRun })
     }
     break
   }
   case 'emeritus':
-    await emeritus(technicalOptions, { dryRun, org, monthsInactiveThreshold })
+    await emeritus(deps, { org, monthsInactiveThreshold, dryRun })
     break
   case 'sponsors':
-    await sponsors(technicalOptions, { org })
+    await sponsors(deps, { org })
     break
   case 'sync-npm-org':
-    await syncNpmOrg(technicalOptions, { org })
+    await syncNpmOrg(deps, { org })
     break
 }

@@ -16,13 +16,16 @@ const TIERS = [
 ]
 
 /**
- * Fetches all sponsors of an organization from GitHub Sponsors and Open Collective,
- * keeps only the recurring tier sponsors (monthly contribution within a tier),
- * sorts them by monthly amount descending and flags those that stopped paying.
- * The result is logged and written to a JSON file for later inspection.
- * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
- * @param {{ org: string }} options - Command options.
- * @returns {Promise<void>}
+ * Merges GitHub Sponsors and Open Collective backers for `org`, keeps only
+ * recurring tier sponsors (monthly contribution ≥ tier 1), sorts them by
+ * monthly amount descending, flags lapsed ones (cancelled or overdue), logs
+ * the result, and writes it to `./sponsors.json` for later inspection.
+ * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps
+ * @param {{ org: string }} options
+ * @returns {Promise<void>} Resolves once the result has been logged and
+ *   written to `sponsors.json`.
+ * @throws {Error} Propagates errors from `client.getGithubSponsors`,
+ *   `client.getOpenCollectiveSponsors`, or `writeFileSync`.
  */
 export default async function sponsors ({ client, logger }, { org }) {
   logger.info('Running sponsors command for organization: %s', org)

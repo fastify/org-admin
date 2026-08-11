@@ -5,11 +5,18 @@
 const CONFIRMATION_KEYWORD = '/confirm-active'
 
 /**
- * Finds inactive members in an organization for the given number of months
- * and opens an issue in the repository to propose moving them to the emeritus team.
- * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
- * @param {{ org: string, monthsInactiveThreshold: number, dryRun: boolean }} options - Command options.
- * @returns {Promise<void>}
+ * Builds the list of members who haven't contributed to `org` in the last
+ * `monthsInactiveThreshold` months (excluding the `leads` team and members
+ * already in the `emeritus` team) and opens a tracking issue in the
+ * `org-admin` repository listing them. In `dryRun` mode the issue is not
+ * created — the list is just logged.
+ * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps
+ * @param {{ org: string, monthsInactiveThreshold: number, dryRun: boolean }} options
+ * @returns {Promise<void>} Resolves once the analysis is complete and the
+ *   tracking issue has been opened (or the dry-run log has been emitted).
+ * @throws {Error} Propagates errors from `client.getOrgData`, `client.getOrgChart`,
+ *   `client.getUsersContributions`, `client.getEmeritusConfirmations`, or
+ *   `client.createIssue`.
  */
 export default async function emeritus ({ client, logger }, { org, monthsInactiveThreshold, dryRun }) {
   logger.info('Running emeritus command for organization: %s', org)

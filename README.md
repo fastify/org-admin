@@ -37,7 +37,6 @@ node --env-file=.env index.js offboard --org <org> --username <user> [--dryRun]
 This command checks the last contribution date of org's members.
 It creates an issue listing the users that have been inactive for more than a specified number of months.
 
-
 ```bash
 node --env-file=.env index.js emeritus --org <org> [--monthsInactiveThreshold] [--dryRun]
 ```
@@ -47,6 +46,19 @@ For the fastify organization, the command would look like:
 ```bash
 node --env-file=.env index.js emeritus --monthsInactiveThreshold 24
 ```
+
+#### Proof of life (avoid being re-listed)
+
+A member is listed purely from their GitHub activity, so someone who is alive but simply
+hasn't contributed code would otherwise be pinged every month. To avoid this, a listed
+member can **comment `/confirm-active` on the emeritus issue** to confirm that their account
+is still monitored and secured — no pull request required.
+
+On the next run the command reads back the comments of previous `emeritus-check`-labelled
+issues and excludes anyone who confirmed. The confirmation is valid for `monthsInactiveThreshold`
+months (the same inactivity window); after that the member is asked to confirm again. The
+lookup fails open: if the comments cannot be read, the run proceeds without exclusions rather
+than risk flagging an active member.
 
 ### List sponsors
 

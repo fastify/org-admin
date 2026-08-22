@@ -3,10 +3,18 @@ import { confirm } from './utils/input.js'
 import { listNpmTeams } from './utils/npm-teams.js'
 
 /**
- * Onboards a user to an organization.
- * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
- * @param {{ org: string, username: string, joiningTeams: Set, dryRun: boolean }} options - Command options.
- * @returns {Promise<void>}
+ * Adds `username` to the requested GitHub teams in `org`, then prints the manual
+ * steps the operator must follow for NPM (invite URL + `npm team add` commands).
+ * Prompts the user for a yes/no confirmation before making any change; in
+ * `dryRun` mode logs what would happen without performing the GitHub mutations.
+ * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps
+ * @param {{ org: string, username: string, joiningTeams: Set<string>, dryRun: boolean }} options
+ * @returns {Promise<void>} Resolves once GitHub changes are applied and the NPM
+ *   instructions have been logged.
+ *   Calls `process.exit(0)` if the user declines the confirmation prompt, and
+ *   `process.exit(1)` if `joiningTeams` contains slugs that don't exist in `org`.
+ * @throws {Error} Propagates errors from `client.getUserInfo`, `client.getOrgData`,
+ *   `client.getOrgChart`, or `client.addUserToTeam`.
  */
 export default async function onboard ({ client, logger }, { org, username, joiningTeams, dryRun }) {
   const joiningUser = await client.getUserInfo(username)

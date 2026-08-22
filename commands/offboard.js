@@ -2,11 +2,21 @@ import { exit } from 'node:process'
 import { confirm } from './utils/input.js'
 import { removeFromNpm } from './utils/remove-from-npm.js'
 import { listNpmTeams, listNpmTeamMembers } from './utils/npm-teams.js'
+
 /**
- * Offboards a user from an organization.
- * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps - Dependencies.
- * @param {{ org: string, username: string, joiningTeams: Set, dryRun: boolean }} options - Command options.
- * @returns {Promise<void>}
+ * Removes `username` from every GitHub team they belong to in `org`, adds them
+ * to the `emeritus` team when it exists, then runs `npm team rm` for each
+ * affected NPM team the user currently belongs to (the user's NPM handle is
+ * read from their GitHub social accounts, falling back to the GitHub login).
+ * Prompts for confirmation before any change; in `dryRun` mode logs what
+ * would happen without making the mutations or spawning `npm`.
+ * @param {{ client: import('../github-api.js').default, logger: import('pino').Logger }} deps
+ * @param {{ org: string, username: string, dryRun: boolean }} options
+ * @returns {Promise<void>} Resolves once all GitHub + NPM cleanup is done.
+ *   Calls `process.exit(0)` if the user declines the confirmation prompt.
+ * @throws {Error} Propagates errors from `client.getUserInfo`, `client.getOrgData`,
+ *   `client.getOrgChart`, `client.removeUserFromTeam`, `client.addUserToTeam`,
+ *   or `removeFromNpm` (excluding OTP handling, which is internal).
  */
 export default async function offboard ({ logger, client }, { org, username, dryRun }) {
   const joiningUser = await client.getUserInfo(username)
@@ -59,7 +69,7 @@ export default async function offboard ({ logger, client }, { org, username, dry
 
     try {
       logger.debug('Removing %s from NPM team %s', npmHandle, team)
-      await removeFromNpm(org, team, npmHandle)
+      await removeFromNpm({ org, teamSlug: team, username: npmHandle })
       logger.info('Removed %s from NPM team %s', npmHandle, team)
     } catch (error) {
       logger.error('Failed to remove %s from NPM team %s', npmHandle, team)

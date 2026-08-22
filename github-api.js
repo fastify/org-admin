@@ -1,31 +1,38 @@
-import { env } from 'node:process'
 import { Octokit } from '@octokit/rest'
 import { graphql } from '@octokit/graphql'
 
 export default class AdminClient {
-  /** @param {import('pino').Logger} [logger] - Optional logger instance, defaults to console. */
-  constructor (logger) {
-    if (!env.GITHUB_TOKEN) {
-      throw new Error('GITHUB_TOKEN environment variable is not set')
+  /**
+   * GitHub + Open Collective admin client. Holds an Octokit REST client and a
+   * GraphQL client authenticated with `githubToken`; methods reuse them for every
+   * call. The Open Collective client is stateless and built per call (it doesn't
+   * need auth, just optionally forwards `ocPersonalToken` as a rate-limit header).
+   * @param {{ githubToken: string, ocPersonalToken?: string, logger?: import('pino').Logger }} deps
+   * @throws {Error} When `githubToken` is missing.
+   */
+  constructor ({ githubToken, ocPersonalToken, logger } = {}) {
+    if (!githubToken) {
+      throw new Error('githubToken is required')
     }
 
     this.logger = logger || console
+    this.ocPersonalToken = ocPersonalToken
     this.restClient = new Octokit({
-      auth: env.GITHUB_TOKEN,
+      auth: githubToken,
       userAgent: 'fastify-org-admin-cli',
     })
-
     this.graphqlClient = graphql.defaults({
       headers: {
-        authorization: `token ${env.GITHUB_TOKEN}`,
+        authorization: `token ${githubToken}`,
       },
     })
   }
 
   /**
    * Retrieves organization data for a given GitHub organization.
-   * @param {string} orgName - The name of the GitHub organization.
-   * @returns {Promise<object>} The organization data.
+   * @param {string} orgName - The login name of the GitHub organization.
+   * @returns {Promise<Organization|null>} The organization node (`{ id, name }`), or
+   *   `null` when the login does not resolve to an organization.
    */
   async getOrgData (orgName) {
     const { organization } = await this.graphqlClient(`
@@ -43,7 +50,6 @@ export default class AdminClient {
   /**
    * Retrieves the organization chart for a given GitHub organization.
    * Fetches all teams and their members using the GitHub GraphQL API, handling pagination.
-   * @async
    * @param {object} orgData - The organization data.
    * @param {string} orgData.name - The login name of the GitHub organization.
    * @returns {Promise<Team[]>} Array of team objects with their members and details.
@@ -271,9 +277,10 @@ export default class AdminClient {
 
   /**
    * Fetches all Open Collective backers of a collective using the public GraphQL v2 API.
-   * Reading backers is public and needs no authentication; if `OC_PERSONAL_TOKEN` is set
-   * it is sent to raise rate limits. Drives off incoming orders (the source of payment
-   * truth) so recurring contributions that lapsed can be flagged.
+   * Reading backers is public and needs no authentication; if the Open Collective personal
+   * token was passed to the constructor it is forwarded as `Personal-Token` to raise rate
+   * limits. Drives off incoming orders (the source of payment truth) so recurring
+   * contributions that lapsed can be flagged.
    * @param {string} slug - The Open Collective collective slug (e.g. 'fastify').
    * @returns {Promise<Sponsor[]>} Array of normalized sponsor objects, one per backer.
    */
@@ -336,14 +343,18 @@ export default class AdminClient {
 
   /**
    * Sends a GraphQL request to the Open Collective v2 API.
+   * Forwards `ocPersonalToken` as the `Personal-Token` header when set.
    * @param {string} query - The GraphQL query string.
    * @param {object} variables - The query variables.
-   * @returns {Promise<object>} The `data` payload of the response.
+   * @returns {Promise<object>} The untyped `data` payload of the response. The
+   *   shape is fully determined by the caller's `query` — pick the fields you
+   *   need out of the returned object.
+   * @throws {Error} When the HTTP response is not OK or the payload contains GraphQL errors.
    */
   async #openCollectiveRequest (query, variables) {
     const headers = { 'Content-Type': 'application/json' }
-    if (env.OC_PERSONAL_TOKEN) {
-      headers['Personal-Token'] = env.OC_PERSONAL_TOKEN
+    if (this.ocPersonalToken) {
+      headers['Personal-Token'] = this.ocPersonalToken
     }
 
     const response = await fetch('https://api.opencollective.com/graphql/v2', {
@@ -367,7 +378,8 @@ export default class AdminClient {
   /**
    * Fetches user information from GitHub using the GraphQL API.
    * @param {string} username - The GitHub username.
-   * @returns {Promise<any>} The user information.
+   * @returns {Promise<UserInfo|null>} The user node (login, name, social accounts),
+   *   or `null` when the username does not resolve.
    */
   async getUserInfo (username) {
     try {
@@ -417,11 +429,11 @@ export default class AdminClient {
   }
 
   /**
-   * Add a user to a team in the organization using the REST API.
+   * Adds a user to a team in the organization using the REST API.
    * @param {string} org - The organization name.
    * @param {string} teamSlug - The team slug.
    * @param {string} username - The GitHub username to add.
-   * @returns {Promise<import('@octokit/openapi-types').components['schemas']['team-membership']>} The updated team data.
+   * @returns {Promise<TeamMembership>} The membership record (`url`, `role`, `state`).
    */
   async addUserToTeam (org, teamSlug, username) {
     try {
@@ -440,20 +452,21 @@ export default class AdminClient {
 
   /**
    * Removes a user from a team in the organization using the REST API.
+   * The endpoint returns 204 No Content with an empty body, so the function
+   * resolves with no value. Callers only need to `await` for completion.
    * @param {string} org - The organization name.
    * @param {string} teamSlug - The team slug.
    * @param {string} username - The GitHub username to remove.
-   * @returns {Promise<any>} The response data from the API.
+   * @returns {Promise<void>} Resolves once the membership has been removed.
    */
   async removeUserFromTeam (org, teamSlug, username) {
     try {
-      const response = await this.restClient.teams.removeMembershipForUserInOrg({
+      await this.restClient.teams.removeMembershipForUserInOrg({
         org,
         team_slug: teamSlug,
         username
       })
       this.logger.info({ username, teamSlug }, 'User removed from team')
-      return response.data
     } catch (error) {
       this.logger.error({ username, teamSlug, error }, 'Failed to remove user from team')
       throw error
@@ -719,6 +732,26 @@ function toDate (dateStr) {
  * @property {Date|null} lastIssue - The date of the user's last issue contribution.
  * @property {Date|null} lastCommit - The date of the user's last commit contribution.
  * @property {object[]} [socialAccounts] - The user's social accounts.
+ */
+
+/**
+ * @typedef {object} Organization
+ * @property {string} id - The organization's GitHub node ID.
+ * @property {string} name - The organization's display name.
+ */
+
+/**
+ * @typedef {object} UserInfo
+ * @property {string} login - The user's GitHub login.
+ * @property {string|null} name - The user's display name (may be null if unset).
+ * @property {{ nodes: Array<{ displayName: string, url: string, provider: string }> }} socialAccounts - The user's social account links (most recent four).
+ */
+
+/**
+ * @typedef {object} TeamMembership
+ * @property {string} url - The API URL for the membership.
+ * @property {'member'|'maintainer'} role - The role granted by the membership.
+ * @property {'active'|'pending'} state - Whether the membership is active or still pending the user's invitation.
  */
 
 /**

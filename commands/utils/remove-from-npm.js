@@ -1,4 +1,3 @@
-import { env } from 'node:process'
 import { spawn } from 'node:child_process'
 import { askForInput } from './input.js'
 
@@ -11,7 +10,7 @@ import { askForInput } from './input.js'
  */
 function runSpawn (cmd, args) {
   return new Promise((resolve, reject) => {
-    const cli = spawn(cmd, args, { env })
+    const cli = spawn(cmd, args)
     cli.stdout.setEncoding('utf8')
     cli.stderr.setEncoding('utf8')
 
@@ -30,13 +29,17 @@ function runSpawn (cmd, args) {
 
 /**
  * Removes a user from an NPM organization team, prompting for OTP if required.
- * @param {string} org - The NPM organization name.
- * @param {string} teamSlug - The team slug.
- * @param {string} username - The NPM username to remove from the team.
+ * The `npm` subprocess inherits its environment from the parent process — no
+ * env is forwarded here, so any auth (e.g. `NPM_TOKEN`) the user has set in
+ * their shell is picked up naturally.
+ * @param {object} params - Parameters.
+ * @param {string} params.org - The NPM organization name.
+ * @param {string} params.teamSlug - The team slug.
+ * @param {string} params.username - The NPM username to remove from the team.
  * @returns {Promise<void>} A promise that resolves when the user is successfully removed.
  * @throws {Error} Throws an error if the npm command fails for reasons other than missing OTP.
  */
-export async function removeFromNpm (org, teamSlug, username) {
+export async function removeFromNpm ({ org, teamSlug, username }) {
   const baseArgs = ['team', 'rm', `@${org}:${teamSlug}`, username]
 
   try {

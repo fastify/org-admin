@@ -25,7 +25,7 @@ node --env-file=.env index.js onboard --username <user> --team collaborators --t
 
 ### Offboard a user
 
-This command removes a user from the active teams in the GitHub organization and npm teams
+This command removes a user from the active teams in the GitHub organization
 and adds the user to the `emeritus` team if it exists.
 
 ```bash

@@ -25,7 +25,7 @@ node --env-file=.env index.js onboard --username <user> --team collaborators --t
 
 ### Offboard a user
 
-This command removes a user from the active teams in the GitHub organization and npm teams
+This command removes a user from the active teams in the GitHub organization
 and adds the user to the `emeritus` team if it exists.
 
 ```bash
@@ -92,68 +92,6 @@ is only flagged as `lapsed` when a recurring sponsorship has been cancelled
 (its `lastChargedAt` is always `null`). To raise the Open Collective rate limit
 you may optionally set `OC_PERSONAL_TOKEN` in `.env` (a personal token from your
 own account — Open Collective has no org-level token).
-
-### Sync the npm org teams
-
-This command reconciles the npm org teams with the GitHub topics of each package's
-repository. It never writes to npm: it downloads the org's package list, resolves
-each package's repository and deprecation status, classifies it into the bucket it
-*should* belong to and diffs that against the team it currently belongs to.
-
-Buckets are driven by the repository's GitHub topic:
-- `fastify-core` → `core`
-- `fastify-library` → `libraries`
-- `fastify-plugin` → `plugins`
-
-while packages deprecated on npm are routed to the `deprecated` team. A package whose repository
-carries none of those topics falls into an `unknown` bucket and is only reported.
-
-The engine flags packages that:
-- are not in any team (added to `developers` as read-only plus their bucket)
-- have been deprecated (moved to `deprecated`)
-- no longer belong to a team after a topic change (revoked)
-- or should be added to a team after a topic change (granted)
-
-It prints an aggregated summary and writes two files:
-1. `npm-org-sync.json` (the full report)
-2. `npm-org-sync.sh` (the `npm access` commands to review and run manually)
-
-For the fastify organization, the command would look like:
-
-```bash
-node --env-file=.env index.js sync-npm-org
-```
-
-#### npm authentication for bulk operations
-
-Reading the org (this command) and running the generated write commands both need an
-npm token. If your account has 2FA set to *Authorization and writes*, every write
-operation prompts for a one-time password — unworkable for the dozens of commands
-this produces. Use a **granular access token instead**, which bypasses the OTP prompt:
-
-- Create it at npmjs.com → *Access Tokens* → *Granular Access Token*, scoped to the
-  `fastify` org with read/write on packages **and** team management.
-- **Give it the shortest expiration you can** (e.g. 1–7 days) — it is a temporary
-  credential just for this bulk run, so a short-lived token limits the blast radius
-  if it leaks.
-- **Revoke it as soon as you are done**, even before it expires.
-
-Keep the token out of version control. Store it in a git-ignored `.env.npm` and load
-it into the shell before running:
-
-```bash
-# .env.npm (git-ignored)
-NPM_CONFIG_TOKEN=npm_yourTemporaryGranularToken
-```
-
-```bash
-source .env.npm
-node --env-file=.env index.js sync-npm-org   # read-only, generates the script
-bash npm-org-sync.sh                          # the actual writes — review first
-```
-
-The repository's `.npmrc` reads this token via `//registry.npmjs.org/:_authToken=${NPM_CONFIG_TOKEN}`,
-overriding your interactive login for the duration of the shell session.
 
 ## License
 
